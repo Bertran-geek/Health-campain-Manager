@@ -1,0 +1,22 @@
+# Root dockerignore
+.git/
+.gitignore
+
+# Documentation (not needed in images)
+*.md
+docs/
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+
+# IDE
+.vscode/
+.idea/
