@@ -1,55 +1,24 @@
 'use client'
 
-import { useState } from 'react'
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Calendar, 
-  Users, 
-  Target,
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  Play,
-  Pause,
-  CheckCircle
+import { useState, useEffect, useCallback } from 'react'
+import {
+  Plus, Search, Calendar, MoreVertical, Trash2,
+  Loader2, RefreshCw, Activity, CheckCircle2, Clock, Syringe,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -60,332 +29,378 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { mockCampaigns, mockCountries, getCampaignTypeLabel, getStatusColor } from '@/lib/mock-data'
-import type { Campaign } from '@/lib/types'
+import api from '@/lib/api'
+import Swal from 'sweetalert2'
 
-const campaignStats = [
-  { label: 'Total Campaigns', value: mockCampaigns.length, color: 'text-foreground' },
-  { label: 'Active', value: mockCampaigns.filter(c => c.status === 'in_progress').length, color: 'text-success' },
-  { label: 'Approved', value: mockCampaigns.filter(c => c.status === 'approved').length, color: 'text-info' },
-  { label: 'Draft', value: mockCampaigns.filter(c => c.status === 'draft').length, color: 'text-muted-foreground' },
-]
+interface Campaign {
+  id_campaign: number; nom: string; code: string; description?: string
+  type_campagne: string; date_debut: string; date_fin: string
+  actif: boolean; sexe: string; nombre_dose: number
+  age_min?: number; age_max?: number; created_at: string
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  VACCINATION:    'Vaccination',
+  DEPISTAGE:      'Dépistage',
+  SUPPLEMENTATION:'Supplémentation',
+  SENSIBILISATION:'Sensibilisation',
+  TRAITEMENT:     'Traitement',
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  VACCINATION:    'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  DEPISTAGE:      'bg-violet-500/15 text-violet-300 border-violet-500/30',
+  SUPPLEMENTATION:'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  SENSIBILISATION:'bg-teal-500/15 text-teal-300 border-teal-500/30',
+  TRAITEMENT:     'bg-rose-500/15 text-rose-300 border-rose-500/30',
+}
+
+const EMPTY_FORM = {
+  nom: '', code: '', description: '', type_campagne: 'VACCINATION',
+  date_debut: '', date_fin: '', sexe: 'ALL', nombre_dose: 1,
+}
+
+const fmtDate = (d: string) =>
+  new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+
+const isActive = (c: Campaign) => {
+  const now = new Date(); const start = new Date(c.date_debut); const end = new Date(c.date_fin)
+  return c.actif && now >= start && now <= end
+}
 
 export default function CampaignsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
+  const [typeFilter, setType]     = useState('all')
+  const [dialogOpen, setDialog]   = useState(false)
+  const [submitting, setSub]      = useState(false)
+  const [form, setForm]           = useState({ ...EMPTY_FORM })
 
-  const filteredCampaigns = mockCampaigns.filter(campaign => {
-    const matchesSearch = campaign.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          campaign.description.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter
-    const matchesType = typeFilter === 'all' || campaign.campaignType === typeFilter
-    return matchesSearch && matchesStatus && matchesType
+  const fetchCampaigns = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/campaigns')
+      setCampaigns(res.data.items ?? [])
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les campagnes.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { fetchCampaigns() }, [fetchCampaigns])
+
+  const filtered = campaigns.filter(c => {
+    const q = search.toLowerCase()
+    const matchSearch = `${c.nom} ${c.code} ${c.description ?? ''}`.toLowerCase().includes(q)
+    const matchType = typeFilter === 'all' || c.type_campagne === typeFilter
+    return matchSearch && matchType
   })
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
+  const handleCreate = async () => {
+    if (!form.nom || !form.code || !form.type_campagne || !form.date_debut || !form.date_fin) {
+      Swal.fire({ icon: 'warning', title: 'Champs requis',
+        text: 'Nom, code, type et dates sont obligatoires.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+      return
+    }
+    setSub(true)
+    try {
+      await api.post('/campaigns', {
+        nom: form.nom, code: form.code,
+        description: form.description || undefined,
+        type_campagne: form.type_campagne,
+        date_debut: form.date_debut, date_fin: form.date_fin,
+        sexe: form.sexe, nombre_dose: Number(form.nombre_dose),
+        actif: true, molecule_ids: [], zones: [],
+      })
+      Swal.fire({ icon: 'success', title: 'Campagne créée !', timer: 1500,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      setForm({ ...EMPTY_FORM })
+      setDialog(false)
+      fetchCampaigns()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Échec de la création.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setSub(false) }
   }
 
-  const getDaysRemaining = (endDate: string) => {
-    const end = new Date(endDate)
-    const now = new Date()
-    const diffTime = end.getTime() - now.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
+  const handleDelete = async (c: Campaign) => {
+    const res = await Swal.fire({
+      title: `Supprimer « ${c.nom} » ?`,
+      text: 'Cette action est irréversible.',
+      icon: 'warning', showCancelButton: true,
+      confirmButtonColor: '#EF4444', cancelButtonColor: '#334155',
+      confirmButtonText: 'Supprimer', cancelButtonText: 'Annuler',
+      background: '#0D1B2E', color: '#E2EAF2',
+    })
+    if (!res.isConfirmed) return
+    try {
+      await api.delete(`/campaigns/${c.id_campaign}`)
+      Swal.fire({ icon: 'success', title: 'Supprimée !', timer: 1200,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      fetchCampaigns()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Suppression impossible.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    }
   }
+
+  const stats = [
+    { label: 'Total',   value: campaigns.length,                 icon: Activity,      color: 'text-sky-400',    bg: 'bg-sky-500/10' },
+    { label: 'En cours', value: campaigns.filter(isActive).length, icon: Clock,        color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: 'Actives', value: campaigns.filter(c => c.actif).length, icon: CheckCircle2, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+    { label: 'Vaccinations', value: campaigns.filter(c => c.type_campagne === 'VACCINATION').length, icon: Syringe, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+  ]
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Campaign Management</h2>
-          <p className="text-muted-foreground">
-            Create, manage, and monitor health campaigns
+          <h2 className="text-2xl font-bold text-foreground">Gestion des Campagnes</h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Créez et suivez les campagnes de santé
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="mr-2 h-4 w-4" />
-              New Campaign
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Create New Campaign</DialogTitle>
-              <DialogDescription>
-                Set up a new health campaign with target populations and schedule.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-              <div className="space-y-2">
-                <Label htmlFor="name">Campaign Name</Label>
-                <Input id="name" placeholder="e.g., Polio Round 4 - Kinshasa 2024" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Describe the campaign objectives..." rows={3} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="type">Campaign Type</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="vaccination_polio">Polio Vaccination</SelectItem>
-                      <SelectItem value="vaccination_measles">Measles Vaccination</SelectItem>
-                      <SelectItem value="vaccination_covid">COVID-19 Vaccination</SelectItem>
-                      <SelectItem value="mosquito_net">Mosquito Net Distribution</SelectItem>
-                      <SelectItem value="vitamin_a">Vitamin A Supplementation</SelectItem>
-                      <SelectItem value="deworming">Deworming</SelectItem>
-                      <SelectItem value="combined">Combined Campaign</SelectItem>
-                    </SelectContent>
-                  </Select>
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={fetchCampaigns} title="Rafraîchir">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialog}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+                <Plus className="h-4 w-4" /> Nouvelle Campagne
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[560px] bg-card border-border">
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Créer une Campagne</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Nom <span className="text-red-400">*</span></Label>
+                    <Input placeholder="Campagne Polio 2025" value={form.nom}
+                      onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Code <span className="text-red-400">*</span></Label>
+                    <Input placeholder="POLIO-2025-01" value={form.code}
+                      onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country">Country</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockCountries.map(country => (
-                        <SelectItem key={country.id} value={country.id}>
-                          {country.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-1">
+                  <Label>Description</Label>
+                  <Textarea placeholder="Objectifs de la campagne..." rows={2} value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    className="bg-muted border-border resize-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Type <span className="text-red-400">*</span></Label>
+                    <Select value={form.type_campagne} onValueChange={v => setForm(f => ({ ...f, type_campagne: v }))}>
+                      <SelectTrigger className="bg-muted border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {Object.entries(TYPE_LABELS).map(([k, v]) =>
+                          <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Sexe cible</Label>
+                    <Select value={form.sexe} onValueChange={v => setForm(f => ({ ...f, sexe: v }))}>
+                      <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="ALL">Tous</SelectItem>
+                        <SelectItem value="M">Masculin</SelectItem>
+                        <SelectItem value="F">Féminin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Date début <span className="text-red-400">*</span></Label>
+                    <Input type="date" value={form.date_debut}
+                      onChange={e => setForm(f => ({ ...f, date_debut: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Date fin <span className="text-red-400">*</span></Label>
+                    <Input type="date" value={form.date_fin}
+                      onChange={e => setForm(f => ({ ...f, date_fin: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Nombre de doses</Label>
+                  <Input type="number" min={1} value={form.nombre_dose}
+                    onChange={e => setForm(f => ({ ...f, nombre_dose: parseInt(e.target.value) || 1 }))}
+                    className="bg-muted border-border w-32" />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setDialog(false)}>Annuler</Button>
+                  <Button onClick={handleCreate} disabled={submitting}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer la campagne'}
+                  </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="startDate">Start Date</Label>
-                  <Input id="startDate" type="date" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date</Label>
-                  <Input id="endDate" type="date" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="targetPopulation">Target Population</Label>
-                  <Input id="targetPopulation" type="number" placeholder="e.g., 2500000" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="budget">Budget (USD)</Label>
-                  <Input id="budget" type="number" placeholder="e.g., 500000" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button className="bg-primary hover:bg-primary/90">
-                  Create Campaign
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {campaignStats.map((stat, index) => (
-          <Card key={index}>
-            <CardContent className="pt-4">
-              <div className={cn('text-2xl font-bold', stat.color)}>{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-            </CardContent>
-          </Card>
-        ))}
+        {stats.map((s, i) => {
+          const Icon = s.icon
+          return (
+            <Card key={i} className="border-border">
+              <CardContent className="flex items-center gap-3 pt-4 pb-4">
+                <div className={cn('p-2.5 rounded-xl', s.bg)}>
+                  <Icon className={cn('h-5 w-5', s.color)} />
+                </div>
+                <div>
+                  <div className={cn('text-2xl font-bold', s.color)}>{s.value}</div>
+                  <div className="text-xs text-muted-foreground">{s.label}</div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search campaigns..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-muted border-transparent focus:border-primary"
-          />
+          <Input placeholder="Rechercher par nom, code..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="pl-9 bg-muted border-border focus:border-primary" />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]">
-            <Filter className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Status" />
+        <Select value={typeFilter} onValueChange={setType}>
+          <SelectTrigger className="w-[180px] bg-muted border-border">
+            <SelectValue placeholder="Type" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="suspended">Suspended</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Campaign Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="vaccination_polio">Polio</SelectItem>
-            <SelectItem value="vaccination_measles">Measles</SelectItem>
-            <SelectItem value="vaccination_covid">COVID-19</SelectItem>
-            <SelectItem value="mosquito_net">Mosquito Net</SelectItem>
-            <SelectItem value="vitamin_a">Vitamin A</SelectItem>
-            <SelectItem value="deworming">Deworming</SelectItem>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="all">Tous les types</SelectItem>
+            {Object.entries(TYPE_LABELS).map(([k, v]) =>
+              <SelectItem key={k} value={k}>{v}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Campaigns Table */}
-      <Card>
+      {/* Table */}
+      <Card className="border-border overflow-hidden">
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Campaign</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Schedule</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead className="w-[60px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCampaigns.map((campaign) => {
-                const progress = campaign.status === 'in_progress' ? 66.6 : 
-                                 campaign.status === 'completed' ? 100 : 0
-                const daysRemaining = getDaysRemaining(campaign.endDate)
-                
-                return (
-                  <TableRow key={campaign.id} className="cursor-pointer hover:bg-muted/30">
+          {loading ? (
+            <div className="flex items-center justify-center h-48 gap-3 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span>Chargement des campagnes...</span>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="text-muted-foreground font-medium">Campagne</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Type</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Période</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Sexe</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Doses</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Statut</TableHead>
+                  <TableHead className="w-[50px]" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map(c => (
+                  <TableRow key={c.id_campaign} className="border-border hover:bg-muted/20">
                     <TableCell>
                       <div>
-                        <div className="font-medium text-foreground">{campaign.name}</div>
-                        <div className="text-sm text-muted-foreground line-clamp-1">
-                          {campaign.description}
-                        </div>
+                        <p className="font-medium text-foreground text-sm">{c.nom}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{c.code}</p>
+                        {c.description && (
+                          <p className="text-xs text-muted-foreground/70 mt-0.5 line-clamp-1">{c.description}</p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {getCampaignTypeLabel(campaign.campaignType)}
+                      <Badge variant="outline"
+                        className={cn('text-xs', TYPE_COLORS[c.type_campagne] ?? 'bg-muted text-foreground')}>
+                        {TYPE_LABELS[c.type_campagne] ?? c.type_campagne}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={cn('capitalize', getStatusColor(campaign.status))}>
-                        {campaign.status.replace('_', ' ')}
+                      <div className="text-xs space-y-0.5">
+                        <div className="flex items-center gap-1 text-foreground">
+                          <Calendar className="h-3 w-3 text-primary/60" />
+                          {fmtDate(c.date_debut)}
+                        </div>
+                        <div className="text-muted-foreground pl-4">→ {fmtDate(c.date_fin)}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        {c.sexe === 'ALL' ? 'Tous' : c.sexe === 'M' ? 'Masculin' : 'Féminin'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm font-medium text-foreground">{c.nombre_dose}</span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn('text-xs',
+                        isActive(c)
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : c.actif
+                            ? 'bg-sky-500/10 text-sky-400 border-sky-500/30'
+                            : 'bg-red-500/10 text-red-400 border-red-500/30'
+                      )}>
+                        {isActive(c) ? 'En cours' : c.actif ? 'Active' : 'Inactive'}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div className="text-foreground">{formatDate(campaign.startDate)}</div>
-                        <div className="text-muted-foreground">
-                          {campaign.status === 'in_progress' && daysRemaining > 0 
-                            ? `${daysRemaining} days left`
-                            : `to ${formatDate(campaign.endDate)}`}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div className="text-foreground font-medium">
-                          {(campaign.targetPopulation / 1000000).toFixed(1)}M
-                        </div>
-                        <div className="text-muted-foreground">
-                          ${(campaign.budgetAllocated / 1000).toFixed(0)}K
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {campaign.status === 'in_progress' || campaign.status === 'completed' ? (
-                        <div className="w-24">
-                          <div className="flex justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Coverage</span>
-                            <span className="text-foreground font-medium">{progress.toFixed(0)}%</span>
-                          </div>
-                          <Progress value={progress} className="h-1.5" />
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Campaign
-                          </DropdownMenuItem>
-                          {campaign.status === 'approved' && (
-                            <DropdownMenuItem>
-                              <Play className="mr-2 h-4 w-4" />
-                              Start Campaign
-                            </DropdownMenuItem>
-                          )}
-                          {campaign.status === 'in_progress' && (
-                            <>
-                              <DropdownMenuItem>
-                                <Pause className="mr-2 h-4 w-4" />
-                                Suspend Campaign
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Mark Complete
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                        <DropdownMenuContent align="end" className="bg-card border-border">
+                          <DropdownMenuSeparator className="bg-border" />
+                          <DropdownMenuItem onClick={() => handleDelete(c)}
+                            className="text-destructive focus:text-destructive cursor-pointer">
+                            <Trash2 className="mr-2 h-4 w-4" />Supprimer
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-
-          {filteredCampaigns.length === 0 && (
-            <div className="flex items-center justify-center h-48 text-muted-foreground">
-              <div className="text-center">
-                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No campaigns found matching your criteria</p>
-              </div>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-3">
+              <Calendar className="h-10 w-10 opacity-30" />
+              <p className="text-sm">Aucune campagne trouvée</p>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {!loading && (
+        <p className="text-xs text-muted-foreground text-right">
+          {filtered.length} campagne{filtered.length > 1 ? 's' : ''}
+          {filtered.length !== campaigns.length && ` sur ${campaigns.length}`}
+        </p>
+      )}
     </div>
   )
 }

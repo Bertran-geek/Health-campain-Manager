@@ -1,207 +1,287 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
-  Plus,
-  Search,
-  Filter,
-  Phone,
-  Mail,
-  MapPin,
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  UserCheck,
-  UserX,
-  GraduationCap,
-  Users,
+  Plus, Search, Phone, Mail, MapPin, MoreVertical,
+  Trash2, UserCheck, UserX, Users, Loader2, ShieldCheck, RefreshCw,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { mockAgents, mockTeams, mockHealthAreas, mockCampaigns } from '@/lib/mock-data'
-import type { Agent, Team } from '@/lib/types'
+import api from '@/lib/api'
+import Swal from 'sweetalert2'
 
-const agentTypeColors: Record<Agent['agentType'], string> = {
-  vaccinator: 'bg-primary/20 text-primary',
-  recorder: 'bg-info/20 text-info',
-  mobilizer: 'bg-accent/20 text-accent',
-  supervisor: 'bg-warning/20 text-warning',
-  team_leader: 'bg-success/20 text-success',
+interface Role { id_role: number; code: string; nom: string }
+interface Scope { niveau: string; id_region?: number | null }
+interface Agent {
+  id_user: number; username: string; nom: string; prenom?: string
+  email?: string; telephone?: string; actif: boolean
+  roles: Role[]; scopes: Scope[]; created_at: string
 }
 
-const agentStats = [
-  { label: 'Total Agents', value: mockAgents.length, icon: Users, color: 'text-foreground' },
-  { label: 'Active', value: mockAgents.filter(a => a.isActive).length, icon: UserCheck, color: 'text-success' },
-  { label: 'Trained', value: mockAgents.filter(a => a.isTrained).length, icon: GraduationCap, color: 'text-primary' },
-  { label: 'Teams', value: mockTeams.length, icon: Users, color: 'text-info' },
-]
+const ROLE_COLORS: Record<string, string> = {
+  SUPER_ADMIN:       'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  NATIONAL_MANAGER:  'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  REGION_MANAGER:    'bg-teal-500/15 text-teal-300 border-teal-500/30',
+  DPT_MANAGER:       'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  PHC_MANAGER:       'bg-orange-500/15 text-orange-300 border-orange-500/30',
+  CHW:               'bg-green-500/15 text-green-300 border-green-500/30',
+}
+
+const NIVEAUX = ['NATIONAL', 'REGION', 'DEPARTEMENT', 'PHC', 'CHW']
+
+const EMPTY_FORM = {
+  nom: '', prenom: '', username: '', email: '', telephone: '',
+  password: '', role_id: '', niveau: 'NATIONAL',
+}
 
 export default function AgentsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [activeTab, setActiveTab] = useState('agents')
+  const [agents, setAgents]       = useState<Agent[]>([])
+  const [roles, setRoles]         = useState<Role[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
+  const [statusFilter, setStatus] = useState('all')
+  const [dialogOpen, setDialog]   = useState(false)
+  const [submitting, setSub]      = useState(false)
+  const [form, setForm]           = useState({ ...EMPTY_FORM })
 
-  const filteredAgents = mockAgents.filter(agent => {
-    const matchesSearch = 
-      `${agent.firstName} ${agent.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.phone.includes(searchQuery)
-    const matchesType = typeFilter === 'all' || agent.agentType === typeFilter
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && agent.isActive) ||
-      (statusFilter === 'inactive' && !agent.isActive) ||
-      (statusFilter === 'trained' && agent.isTrained) ||
-      (statusFilter === 'untrained' && !agent.isTrained)
-    return matchesSearch && matchesType && matchesStatus
+  const fetchAgents = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/users')
+      setAgents(res.data.items ?? [])
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les agents.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setLoading(false) }
+  }, [])
+
+  const fetchRoles = useCallback(async () => {
+    try {
+      const res = await api.get('/users/roles')
+      setRoles(res.data ?? [])
+    } catch { /* silently ignore */ }
+  }, [])
+
+  useEffect(() => { fetchAgents(); fetchRoles() }, [fetchAgents, fetchRoles])
+
+  const filtered = agents.filter(a => {
+    const q = search.toLowerCase()
+    const matchSearch = `${a.nom} ${a.prenom ?? ''} ${a.username} ${a.email ?? ''}`.toLowerCase().includes(q)
+    const matchStatus = statusFilter === 'all'
+      || (statusFilter === 'active' && a.actif)
+      || (statusFilter === 'inactive' && !a.actif)
+    return matchSearch && matchStatus
   })
 
-  const getHealthAreaName = (healthAreaId: string) => {
-    return mockHealthAreas.find(ha => ha.id === healthAreaId)?.name || 'Unknown'
+  const handleCreate = async () => {
+    if (!form.nom || !form.username || !form.password || !form.role_id) {
+      Swal.fire({ icon: 'warning', title: 'Champs requis',
+        text: 'Nom, identifiant, rôle et mot de passe sont obligatoires.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+      return
+    }
+    setSub(true)
+    try {
+      await api.post('/users', {
+        username:  form.username,
+        nom:       form.nom,
+        prenom:    form.prenom || undefined,
+        email:     form.email  || undefined,
+        telephone: form.telephone || undefined,
+        password:  form.password,
+        actif:     true,
+        role_ids:  [parseInt(form.role_id)],
+        scopes:    [{ niveau: form.niveau, actif: true }],
+      })
+      Swal.fire({ icon: 'success', title: 'Agent créé !', timer: 1500,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      setForm({ ...EMPTY_FORM })
+      setDialog(false)
+      fetchAgents()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Échec de la création.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setSub(false) }
   }
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName[0]}${lastName[0]}`.toUpperCase()
+  const handleToggle = async (agent: Agent) => {
+    try {
+      await api.put(`/users/${agent.id_user}`, { actif: !agent.actif })
+      fetchAgents()
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Modification impossible.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    }
   }
+
+  const handleDelete = async (agent: Agent) => {
+    const res = await Swal.fire({
+      title: `Supprimer ${agent.nom} ${agent.prenom ?? ''} ?`,
+      text: 'Cette action est irréversible.',
+      icon: 'warning', showCancelButton: true,
+      confirmButtonColor: '#EF4444', cancelButtonColor: '#334155',
+      confirmButtonText: 'Oui, supprimer', cancelButtonText: 'Annuler',
+      background: '#0D1B2E', color: '#E2EAF2',
+    })
+    if (!res.isConfirmed) return
+    try {
+      await api.delete(`/users/${agent.id_user}`)
+      Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1200,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      fetchAgents()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Suppression impossible.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    }
+  }
+
+  const getInitials = (nom: string, prenom?: string) =>
+    `${nom[0]}${prenom ? prenom[0] : ''}`.toUpperCase()
+
+  const stats = [
+    { label: 'Total', value: agents.length, icon: Users,     color: 'text-sky-400',    bg: 'bg-sky-500/10' },
+    { label: 'Actifs', value: agents.filter(a => a.actif).length, icon: UserCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: 'Inactifs', value: agents.filter(a => !a.actif).length, icon: UserX, color: 'text-red-400', bg: 'bg-red-500/10' },
+    { label: 'Rôles', value: roles.length, icon: ShieldCheck, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+  ]
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Agent Management</h2>
-          <p className="text-muted-foreground">
-            Manage field agents and team assignments
+          <h2 className="text-2xl font-bold text-foreground">Gestion des Agents</h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Créez, gérez et suivez les agents de terrain
           </p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Agent
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Add New Agent</DialogTitle>
-              <DialogDescription>
-                Register a new field agent for campaign activities.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="Enter first name" />
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={fetchAgents} title="Rafraîchir">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialog}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+                <Plus className="h-4 w-4" /> Nouvel Agent
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[540px] bg-card border-border">
+              <DialogHeader>
+                <DialogTitle className="text-foreground">Créer un Agent</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Nom <span className="text-red-400">*</span></Label>
+                    <Input placeholder="Dupont" value={form.nom}
+                      onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Prénom</Label>
+                    <Input placeholder="Jean" value={form.prenom}
+                      onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Enter last name" />
+                <div className="space-y-1">
+                  <Label>Identifiant (username) <span className="text-red-400">*</span></Label>
+                  <Input placeholder="jean.dupont" value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    className="bg-muted border-border" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Email</Label>
+                    <Input type="email" placeholder="jean@health.local" value={form.email}
+                      onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Téléphone</Label>
+                    <Input placeholder="+22600000001" value={form.telephone}
+                      onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
+                      className="bg-muted border-border" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Mot de passe <span className="text-red-400">*</span> <span className="text-xs text-muted-foreground">(min 8 caractères)</span></Label>
+                  <Input type="password" placeholder="••••••••" value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    className="bg-muted border-border" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Rôle <span className="text-red-400">*</span></Label>
+                    <Select value={form.role_id} onValueChange={v => setForm(f => ({ ...f, role_id: v }))}>
+                      <SelectTrigger className="bg-muted border-border">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {roles.map(r => (
+                          <SelectItem key={r.id_role} value={String(r.id_role)}>{r.nom}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Zone géographique <span className="text-red-400">*</span></Label>
+                    <Select value={form.niveau} onValueChange={v => setForm(f => ({ ...f, niveau: v }))}>
+                      <SelectTrigger className="bg-muted border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {NIVEAUX.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setDialog(false)}>Annuler</Button>
+                  <Button onClick={handleCreate} disabled={submitting}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer l\'agent'}
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" placeholder="+243 XXX XXX XXX" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (Optional)</Label>
-                <Input id="email" type="email" placeholder="agent@health.org" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="agentType">Agent Type</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="vaccinator">Vaccinator</SelectItem>
-                      <SelectItem value="recorder">Recorder</SelectItem>
-                      <SelectItem value="mobilizer">Mobilizer</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="team_leader">Team Leader</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="healthArea">Health Area</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select area" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockHealthAreas.map(ha => (
-                        <SelectItem key={ha.id} value={ha.id}>
-                          {ha.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline">Cancel</Button>
-                <Button className="bg-primary hover:bg-primary/90">Add Agent</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {agentStats.map((stat, index) => {
-          const Icon = stat.icon
+        {stats.map((s, i) => {
+          const Icon = s.icon
           return (
-            <Card key={index}>
-              <CardContent className="flex items-center gap-4 pt-4">
-                <div className={cn('p-2 rounded-lg bg-muted')}>
-                  <Icon className={cn('h-5 w-5', stat.color)} />
+            <Card key={i} className="border-border">
+              <CardContent className="flex items-center gap-3 pt-4 pb-4">
+                <div className={cn('p-2.5 rounded-xl', s.bg)}>
+                  <Icon className={cn('h-5 w-5', s.color)} />
                 </div>
                 <div>
-                  <div className={cn('text-2xl font-bold', stat.color)}>{stat.value}</div>
-                  <div className="text-sm text-muted-foreground">{stat.label}</div>
+                  <div className={cn('text-2xl font-bold', s.color)}>{s.value}</div>
+                  <div className="text-xs text-muted-foreground">{s.label}</div>
                 </div>
               </CardContent>
             </Card>
@@ -209,269 +289,156 @@ export default function AgentsPage() {
         })}
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-muted">
-          <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
-        </TabsList>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Rechercher par nom, identifiant, email..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="pl-9 bg-muted border-border focus:border-primary" />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatus}>
+          <SelectTrigger className="w-[160px] bg-muted border-border">
+            <SelectValue placeholder="Statut" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="all">Tous</SelectItem>
+            <SelectItem value="active">Actifs</SelectItem>
+            <SelectItem value="inactive">Inactifs</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-        <TabsContent value="agents" className="space-y-4">
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-muted border-transparent focus:border-primary"
-              />
+      {/* Table */}
+      <Card className="border-border overflow-hidden">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center h-48 gap-3 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span>Chargement des agents...</span>
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[160px]">
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="vaccinator">Vaccinator</SelectItem>
-                <SelectItem value="recorder">Recorder</SelectItem>
-                <SelectItem value="mobilizer">Mobilizer</SelectItem>
-                <SelectItem value="supervisor">Supervisor</SelectItem>
-                <SelectItem value="team_leader">Team Leader</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="trained">Trained</SelectItem>
-                <SelectItem value="untrained">Not Trained</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Agents Table */}
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Health Area</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAgents.map((agent) => (
-                    <TableRow key={agent.id} className="cursor-pointer hover:bg-muted/30">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                              {getInitials(agent.firstName, agent.lastName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-foreground">
-                              {agent.firstName} {agent.lastName}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              ID: {agent.id.toUpperCase()}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={cn('capitalize', agentTypeColors[agent.agentType])}>
-                          {agent.agentType.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          {getHealthAreaName(agent.healthAreaId)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-sm">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-foreground">{agent.phone}</span>
-                          </div>
-                          {agent.email && (
-                            <div className="flex items-center gap-1 text-sm">
-                              <Mail className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-muted-foreground">{agent.email}</span>
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              'text-xs w-fit',
-                              agent.isActive 
-                                ? 'bg-success/10 text-success border-success/30' 
-                                : 'bg-muted text-muted-foreground'
-                            )}
-                          >
-                            {agent.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              'text-xs w-fit',
-                              agent.isTrained 
-                                ? 'bg-primary/10 text-primary border-primary/30' 
-                                : 'bg-warning/10 text-warning border-warning/30'
-                            )}
-                          >
-                            {agent.isTrained ? 'Trained' : 'Not Trained'}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Profile
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Agent
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <GraduationCap className="mr-2 h-4 w-4" />
-                              Mark as Trained
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              {agent.isActive ? (
-                                <>
-                                  <UserX className="mr-2 h-4 w-4" />
-                                  Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="mr-2 h-4 w-4" />
-                                  Activate
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {filteredAgents.length === 0 && (
-                <div className="flex items-center justify-center h-48 text-muted-foreground">
-                  <div className="text-center">
-                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No agents found matching your criteria</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="teams" className="space-y-4">
-          {/* Teams Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mockTeams.map((team) => {
-              const teamLeader = mockAgents.find(a => a.id === team.teamLeaderId)
-              const healthArea = mockHealthAreas.find(ha => ha.id === team.healthAreaId)
-              const campaign = mockCampaigns.find(c => c.id === team.campaignId)
-              
-              return (
-                <Card key={team.id} className="hover:border-primary/50 transition-colors cursor-pointer">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{team.name}</CardTitle>
-                      <Badge variant="outline" className="text-xs">
-                        {team.code}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">Campaign:</span>
-                        <span className="text-foreground font-medium">{campaign?.name.split(' - ')[0]}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-foreground">{healthArea?.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-foreground">Daily Target: {team.dailyTarget}</span>
-                      </div>
-                    </div>
-                    
-                    {teamLeader && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-success/20 text-success text-xs">
-                            {getInitials(teamLeader.firstName, teamLeader.lastName)}
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
+                  <TableHead className="text-muted-foreground font-medium">Agent</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Contact</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Rôles</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Zone</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">Statut</TableHead>
+                  <TableHead className="w-[50px]" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map(agent => (
+                  <TableRow key={agent.id_user} className="border-border hover:bg-muted/20">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">
+                            {getInitials(agent.nom, agent.prenom)}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="text-sm font-medium text-foreground">
-                            {teamLeader.firstName} {teamLeader.lastName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Team Leader</div>
+                          <p className="font-medium text-foreground text-sm">
+                            {agent.nom} {agent.prenom ?? ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">@{agent.username}</p>
                         </div>
                       </div>
-                    )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-0.5">
+                        {agent.email && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Mail className="h-3 w-3" />{agent.email}
+                          </div>
+                        )}
+                        {agent.telephone && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3" />{agent.telephone}
+                          </div>
+                        )}
+                        {!agent.email && !agent.telephone && (
+                          <span className="text-xs text-muted-foreground/50">—</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {agent.roles.length === 0
+                          ? <span className="text-xs text-muted-foreground/50">Aucun</span>
+                          : agent.roles.map(r => (
+                            <Badge key={r.id_role} variant="outline"
+                              className={cn('text-xs px-1.5', ROLE_COLORS[r.code] ?? 'bg-muted text-foreground')}>
+                              {r.code.replace('_', ' ')}
+                            </Badge>
+                          ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {agent.scopes.length === 0
+                          ? <span className="text-xs text-muted-foreground/50">—</span>
+                          : agent.scopes.map((s, i) => (
+                            <div key={i} className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3 text-primary/60" />{s.niveau}
+                            </div>
+                          ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn('text-xs',
+                        agent.actif
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                          : 'bg-red-500/10 text-red-400 border-red-500/30'
+                      )}>
+                        {agent.actif ? 'Actif' : 'Inactif'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-card border-border">
+                          <DropdownMenuItem onClick={() => handleToggle(agent)}
+                            className="cursor-pointer">
+                            {agent.actif
+                              ? <><UserX className="mr-2 h-4 w-4 text-amber-400" />Désactiver</>
+                              : <><UserCheck className="mr-2 h-4 w-4 text-emerald-400" />Activer</>}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-border" />
+                          <DropdownMenuItem onClick={() => handleDelete(agent)}
+                            className="text-destructive focus:text-destructive cursor-pointer">
+                            <Trash2 className="mr-2 h-4 w-4" />Supprimer
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-3">
+              <Users className="h-10 w-10 opacity-30" />
+              <p className="text-sm">Aucun agent trouvé</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        View Team
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Add Member
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-
-            {/* Add Team Card */}
-            <Card className="border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer">
-              <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground">
-                <Plus className="h-10 w-10 mb-2" />
-                <span>Create New Team</span>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+      {/* Footer count */}
+      {!loading && (
+        <p className="text-xs text-muted-foreground text-right">
+          {filtered.length} agent{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
+          {filtered.length !== agents.length && ` sur ${agents.length}`}
+        </p>
+      )}
     </div>
   )
 }
