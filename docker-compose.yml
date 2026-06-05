@@ -12,7 +12,7 @@ services:
       MYSQL_USER: health_user
       MYSQL_PASSWORD: health_pass
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docs/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -58,6 +58,18 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
     depends_on:
       - backend
+
+  # Adminer - Web GUI for MySQL
+  adminer:
+    image: adminer:latest
+    container_name: health_campaign_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      ADMINER_DEFAULT_SERVER: db
 
 volumes:
   mysql_data:

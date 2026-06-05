@@ -200,13 +200,12 @@ INSERT INTO role(code, nom, description) VALUES
 INSERT INTO region(code, nom_region)
 VALUES ('CENTRE', 'Centre');
 
--- Insert default admin user (password: admin123 - CHANGE IN PRODUCTION!)
--- Password hash generated with bcrypt cost factor 12
+-- Insert default admin user (plain text password for development)
 INSERT INTO user(
     username, password_hash, nom, prenom, telephone, email, actif
 ) VALUES (
     'admin',
-    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYWWQQQQQQQQ',
+    'admin123',
     'Administrateur',
     'System',
     '+22600000000',

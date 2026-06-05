@@ -50,8 +50,11 @@ def login(
     Raises:
         HTTPException: If credentials are invalid
     """
-    # Find user by username
-    user = db.query(User).filter(User.username == form_data.username).first()
+    # Find user by username or email
+    from sqlalchemy import or_
+    user = db.query(User).filter(
+        or_(User.username == form_data.username, User.email == form_data.username)
+    ).first()
     
     if not user:
         raise HTTPException(
@@ -60,7 +63,7 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Verify password
+    # Verify password (plain text, no hashing)
     if not verify_password(form_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
