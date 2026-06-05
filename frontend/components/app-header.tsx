@@ -1,6 +1,6 @@
 'use client'
 
-import { Bell, Search, User, ChevronDown } from 'lucide-react'
+import { Bell, Search, LogOut, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,12 +13,54 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useRouter } from 'next/navigation'
+import { useLocale } from 'next-intl'
+import Swal from 'sweetalert2'
 
 interface AppHeaderProps {
   title?: string
 }
 
 export function AppHeader({ title = 'Dashboard' }: AppHeaderProps) {
+  const router = useRouter()
+  const locale = useLocale()
+
+  const handleLogout = async () => {
+    const result = await Swal.fire({
+      title: locale === 'fr' ? 'Déconnexion' : 'Sign out',
+      text: locale === 'fr'
+        ? 'Voulez-vous vraiment vous déconnecter ?'
+        : 'Are you sure you want to sign out?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#5C8BB0',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: locale === 'fr' ? 'Oui, déconnecter' : 'Yes, sign out',
+      cancelButtonText: locale === 'fr' ? 'Annuler' : 'Cancel',
+      background: 'rgba(15, 35, 55, 0.97)',
+      color: '#ffffff',
+    })
+
+    if (result.isConfirmed) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      sessionStorage.clear()
+
+      await Swal.fire({
+        icon: 'success',
+        title: locale === 'fr' ? 'Déconnecté !' : 'Signed out!',
+        text: locale === 'fr' ? 'À bientôt.' : 'See you soon.',
+        timer: 1200,
+        showConfirmButton: false,
+        background: 'rgba(15, 35, 55, 0.97)',
+        color: '#ffffff',
+        iconColor: '#70E095',
+      })
+
+      router.push(`/${locale === 'en' ? '' : locale}`)
+    }
+  }
+
   return (
     <header className="flex items-center justify-between h-16 px-6 border-b border-border bg-card">
       <div className="flex items-center gap-4">
@@ -49,24 +91,30 @@ export function AppHeader({ title = 'Dashboard' }: AppHeaderProps) {
             <Button variant="ghost" className="flex items-center gap-2 px-2">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                  PM
+                  AD
                 </AvatarFallback>
               </Avatar>
               <div className="hidden md:flex flex-col items-start">
-                <span className="text-sm font-medium text-foreground">Paul Mbeki</span>
-                <span className="text-xs text-muted-foreground">National Coordinator</span>
+                <span className="text-sm font-medium text-foreground">Administrateur</span>
+                <span className="text-xs text-muted-foreground">Super Admin</span>
               </div>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>{locale === 'fr' ? 'Mon compte' : 'My Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem>Help & Support</DropdownMenuItem>
+            <DropdownMenuItem>{locale === 'fr' ? 'Profil' : 'Profile'}</DropdownMenuItem>
+            <DropdownMenuItem>{locale === 'fr' ? 'Paramètres' : 'Settings'}</DropdownMenuItem>
+            <DropdownMenuItem>{locale === 'fr' ? 'Aide' : 'Help & Support'}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Sign out</DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive cursor-pointer"
+              onClick={handleLogout}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              {locale === 'fr' ? 'Se déconnecter' : 'Sign out'}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

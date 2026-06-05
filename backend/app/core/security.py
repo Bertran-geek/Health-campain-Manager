@@ -6,45 +6,19 @@ Handles password hashing, JWT token generation and validation.
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import HTTPException, status
 
 from app.core.config import settings
 
 
-# Password hashing context using bcrypt
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=12,  # Cost factor for bcrypt
-)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verify a plain password against a hashed password.
-    
-    Args:
-        plain_password: The plain text password to verify
-        hashed_password: The bcrypt hashed password to compare against
-        
-    Returns:
-        True if password matches, False otherwise
-    """
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, stored_password: str) -> bool:
+    """Plain text password comparison (no hashing)."""
+    return plain_password == stored_password
 
 
 def get_password_hash(password: str) -> str:
-    """
-    Hash a password using bcrypt.
-    
-    Args:
-        password: Plain text password to hash
-        
-    Returns:
-        Bcrypt hashed password string
-    """
-    return pwd_context.hash(password)
+    """Return password as-is (no hashing)."""
+    return password
 
 
 def create_access_token(

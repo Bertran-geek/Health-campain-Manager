@@ -49,7 +49,8 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:8000/api/v1 |
 | API Docs (Swagger) | http://localhost:8000/api/v1/docs |
-| MySQL | localhost:3306 |
+| Adminer (DB GUI) | http://localhost:8080 |
+| MySQL (direct) | localhost:3307 |
 
 Default database credentials in Docker:
 - **User**: `health_user` / **Password**: `health_pass`
