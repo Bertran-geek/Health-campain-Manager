@@ -5,7 +5,7 @@ Handles CRUD operations for users, roles, and scopes.
 
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
 
 
 # ============== Role Schemas ==============
@@ -70,7 +70,7 @@ class UserBase(BaseModel):
     nom: str = Field(..., min_length=2, max_length=100)
     prenom: Optional[str] = Field(None, max_length=100)
     telephone: Optional[str] = Field(None, max_length=30)
-    email: Optional[EmailStr] = None
+    email: Optional[str] = Field(None, max_length=255)
     actif: bool = True
 
 
@@ -86,7 +86,7 @@ class UserUpdate(BaseModel):
     nom: Optional[str] = Field(None, min_length=2, max_length=100)
     prenom: Optional[str] = Field(None, max_length=100)
     telephone: Optional[str] = Field(None, max_length=30)
-    email: Optional[EmailStr] = None
+    email: Optional[str] = Field(None, max_length=255)
     actif: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=8, max_length=100)
     role_ids: Optional[List[int]] = None

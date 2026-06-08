@@ -4,7 +4,7 @@ A comprehensive health campaign management system with a FastAPI backend and Nex
 
 Health Campaign Manager is a web platform that streamlines the planning, execution, and monitoring of mass health campaigns. It enables real-time tracking of activities, field agents, targets, and coverage across all administrative levels, providing dashboards, reports, and insights to improve campaign performance and decision-making.
 
-## 🏗️ Project Structure
+##  Project Structure
 
 ```
 HEALTH_CAMPAIGN_MANAGER/
@@ -30,7 +30,7 @@ HEALTH_CAMPAIGN_MANAGER/
 └── README.md              # This file
 ```
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Option 1: Docker (Recommended)
 
@@ -44,13 +44,13 @@ docker-compose up --build
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:8000/api/v1 |
-| API Docs (Swagger) | http://localhost:8000/api/v1/docs |
-| Adminer (DB GUI) | http://localhost:8080 |
-| MySQL (direct) | localhost:3307 |
+| Service                     |          URL                    |
+
+| Frontend                    | http://localhost:3000 |
+| Backend API                 | http://localhost:8000/api/v1 |
+| API Docs (Swagger)          | http://localhost:8000/api/v1/docs |
+| Adminer (DB GUI)            | http://localhost:8080 |
+| MySQL (direct)              | localhost:3307 |
 
 Default database credentials in Docker:
 - **User**: `health_user` / **Password**: `health_pass`
@@ -107,13 +107,13 @@ pnpm dev
 
 Frontend: http://localhost:3000
 
-## 📚 Documentation
+##  Documentation
 
 - **API Docs**: http://localhost:8000/api/v1/docs (Swagger UI)
 - **Database**: [docs/DATABASE.md](docs/DATABASE.md)
 - **Class Diagram**: [docs/CLASS_DIAGRAM.md](docs/CLASS_DIAGRAM.md)
 
-## 🔐 Security Features
+##  Security Features
 
 - **JWT Authentication** with access and refresh tokens
 - **Role-Based Access Control (RBAC)** with 6 hierarchical roles
@@ -121,7 +121,7 @@ Frontend: http://localhost:3000
 - **Audit Logging** for all data modifications
 - **CORS Protection** configured for frontend origin
 
-## 👥 User Roles
+##  User Roles
 
 | Role | Description | Access Level |
 |------|-------------|--------------|
@@ -132,7 +132,7 @@ Frontend: http://localhost:3000
 | PHC_MANAGER | PHC management | PHC + below |
 | CHW | Community Health Worker | Own data only |
 
-## 🗺️ Geographic Hierarchy
+##  Geographic Hierarchy
 
 ```
 Region
@@ -141,7 +141,7 @@ Region
               └── CHW (Community Health Worker)
 ```
 
-## 📊 Campaign Types
+##  Campaign Types
 
 - **VACCINATION** - Vaccination campaigns
 - **DEPISTAGE** - Screening campaigns
@@ -149,7 +149,7 @@ Region
 - **SENSIBILISATION** - Awareness campaigns
 - **TRAITEMENT** - Treatment campaigns
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 ### Backend
 - FastAPI 0.115.0
@@ -166,6 +166,6 @@ Region
 - shadcn/ui
 - Lucide Icons
 
-## 📝 License
+##  License
 
 MIT License

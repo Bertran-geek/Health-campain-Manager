@@ -6,7 +6,6 @@ Handles password hashing, JWT token generation and validation.
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 from jose import JWTError, jwt
-from fastapi import HTTPException, status
 
 from app.core.config import settings
 
@@ -92,21 +91,14 @@ def decode_token(token: str) -> dict:
         Decoded token payload as dictionary
         
     Raises:
-        HTTPException: If token is invalid or expired
+        JWTError: If token is invalid or expired
     """
-    try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM],
-        )
-        return payload
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    payload = jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[settings.ALGORITHM],
+    )
+    return payload
 
 
 def verify_token_type(payload: dict, expected_type: str) -> bool:

@@ -68,7 +68,7 @@ export default function AgentsPage() {
       const res = await api.get('/users')
       setAgents(res.data.items ?? [])
     } catch {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les agents.',
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les users.',
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
     } finally { setLoading(false) }
   }, [])
@@ -111,7 +111,7 @@ export default function AgentsPage() {
         role_ids:  [parseInt(form.role_id)],
         scopes:    [{ niveau: form.niveau, actif: true }],
       })
-      Swal.fire({ icon: 'success', title: 'Agent créé !', timer: 1500,
+      Swal.fire({ icon: 'success', title: 'User créé !', timer: 1500,
         showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
       setForm({ ...EMPTY_FORM })
       setDialog(false)
@@ -170,9 +170,9 @@ export default function AgentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Gestion des Agents</h2>
+          <h2 className="text-2xl font-bold text-foreground">Gestion des Users</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Créez, gérez et suivez les agents de terrain
+            Créez, gérez et suivez les users de terrain
           </p>
         </div>
         <div className="flex gap-2">
@@ -182,12 +182,12 @@ export default function AgentsPage() {
           <Dialog open={dialogOpen} onOpenChange={setDialog}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-                <Plus className="h-4 w-4" /> Nouvel Agent
+                <Plus className="h-4 w-4" /> New User
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[540px] bg-card border-border">
               <DialogHeader>
-                <DialogTitle className="text-foreground">Créer un Agent</DialogTitle>
+                <DialogTitle className="text-foreground">Créer un User</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="grid grid-cols-2 gap-3">
@@ -321,7 +321,7 @@ export default function AgentsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="text-muted-foreground font-medium">Agent</TableHead>
+                  <TableHead className="text-muted-foreground font-medium">User</TableHead>
                   <TableHead className="text-muted-foreground font-medium">Contact</TableHead>
                   <TableHead className="text-muted-foreground font-medium">Rôles</TableHead>
                   <TableHead className="text-muted-foreground font-medium">Zone</TableHead>
@@ -426,7 +426,7 @@ export default function AgentsPage() {
           {!loading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-3">
               <Users className="h-10 w-10 opacity-30" />
-              <p className="text-sm">Aucun agent trouvé</p>
+              <p className="text-sm">Aucun User trouvé</p>
             </div>
           )}
         </CardContent>
@@ -435,7 +435,7 @@ export default function AgentsPage() {
       {/* Footer count */}
       {!loading && (
         <p className="text-xs text-muted-foreground text-right">
-          {filtered.length} agent{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
+          {filtered.length} user{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
           {filtered.length !== agents.length && ` sur ${agents.length}`}
         </p>
       )}

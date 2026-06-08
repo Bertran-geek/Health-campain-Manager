@@ -44,10 +44,10 @@ class User(Base):
     updated_at = Column(TIMESTAMP, nullable=True, onupdate=func.current_timestamp())
 
     roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
-    scopes = relationship("UserScope", back_populates="user")
+    scopes = relationship("UserScope", back_populates="user", cascade="all, delete-orphan")
     created_campaigns = relationship("Campaign", foreign_keys="Campaign.creee_par", back_populates="creator")
     modified_campaigns = relationship("Campaign", foreign_keys="Campaign.modifiee_par", back_populates="modifier")
-    audit_logs = relationship("AuditLog", back_populates="user")
+    audit_logs = relationship("AuditLog", back_populates="user", passive_deletes=True)
 
 
 class Region(Base):

@@ -78,6 +78,7 @@ def create_role(
 @router.get("", response_model=UserListResponse)
 def get_users(
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
@@ -377,7 +378,9 @@ def delete_user(
     # Store for audit
     old_values = {"username": user.username, "nom": user.nom}
     
-    # Delete user (cascades to user_role)
+    # Explicitly delete scopes (no DB-level CASCADE on user_scope FK)
+    db.query(UserScope).filter(UserScope.id_user == user_id).delete()
+    # Delete user (cascades to user_role via DB CASCADE)
     db.delete(user)
     db.commit()
     

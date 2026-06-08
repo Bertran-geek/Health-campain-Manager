@@ -16,7 +16,7 @@ from app.api.deps import (
     require_dpt_manager,
     require_phc_manager,
 )
-from app.models.models import User, Region, Departement, PHC, CHW
+from app.models.models import User, Region, Departement, PHC, CHW, UserScope
 from app.schemas.geography import (
     RegionCreate,
     RegionUpdate,
@@ -191,7 +191,15 @@ def delete_region(
     if dpt_count > 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot delete region with {dpt_count} departments",
+            detail=f"Cannot delete region with {dpt_count} department(s). Remove them first.",
+        )
+    
+    # Check for user scopes pointing to this region
+    scope_count = db.query(UserScope).filter(UserScope.id_region == region_id).count()
+    if scope_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{scope_count} user(s) have this region in their scope. Reassign them first.",
         )
     
     old_values = {"code": region.code, "nom_region": region.nom_region}
@@ -337,11 +345,29 @@ def delete_departement(
     if phc_count > 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot delete department with {phc_count} PHCs",
+            detail=f"Cannot delete department with {phc_count} PHC(s). Remove them first.",
         )
     
+    # Check for user scopes pointing to this department
+    scope_count = db.query(UserScope).filter(UserScope.id_dpt == dpt_id).count()
+    if scope_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{scope_count} user(s) have this department in their scope. Reassign them first.",
+        )
+    
+    old_values = {"nom_dpt": dpt.nom_dpt, "code": dpt.code}
     db.delete(dpt)
     db.commit()
+    
+    create_audit_log(
+        db=db,
+        user_id=current_user.id_user,
+        action="DELETE",
+        table_name="departement",
+        record_id=dpt_id,
+        old_value=old_values,
+    )
     
     return {"message": "Department deleted successfully"}
 
@@ -463,11 +489,29 @@ def delete_phc(
     if chw_count > 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot delete PHC with {chw_count} CHWs",
+            detail=f"Cannot delete PHC with {chw_count} CHW(s). Remove them first.",
         )
     
+    # Check for user scopes pointing to this PHC
+    scope_count = db.query(UserScope).filter(UserScope.id_phc == phc_id).count()
+    if scope_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{scope_count} user(s) have this PHC in their scope. Reassign them first.",
+        )
+    
+    old_values = {"nom_phc": phc.nom_phc, "code": phc.code}
     db.delete(phc)
     db.commit()
+    
+    create_audit_log(
+        db=db,
+        user_id=current_user.id_user,
+        action="DELETE",
+        table_name="phc",
+        record_id=phc_id,
+        old_value=old_values,
+    )
     
     return {"message": "PHC deleted successfully"}
 
@@ -586,7 +630,25 @@ def delete_chw(
     if not chw:
         raise HTTPException(status_code=404, detail="CHW not found")
     
+    # Check for user scopes pointing to this CHW
+    scope_count = db.query(UserScope).filter(UserScope.id_chw == chw_id).count()
+    if scope_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{scope_count} user(s) have this CHW in their scope. Reassign them first.",
+        )
+    
+    old_values = {"nom": chw.nom, "code": chw.code}
     db.delete(chw)
     db.commit()
+    
+    create_audit_log(
+        db=db,
+        user_id=current_user.id_user,
+        action="DELETE",
+        table_name="chw",
+        record_id=chw_id,
+        old_value=old_values,
+    )
     
     return {"message": "CHW deleted successfully"}
