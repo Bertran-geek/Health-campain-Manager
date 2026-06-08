@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Plus, Search, Phone, Mail, MapPin, MoreVertical,
+  Plus, Search, Phone, Mail, MapPin, MoreVertical, Edit,
   Trash2, UserCheck, UserX, Users, Loader2, ShieldCheck, RefreshCw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -52,15 +52,20 @@ const EMPTY_FORM = {
   password: '', role_id: '', niveau: 'NATIONAL',
 }
 
-export default function AgentsPage() {
+export default function UsersPage() {
   const [agents, setAgents]       = useState<Agent[]>([])
   const [roles, setRoles]         = useState<Role[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatus] = useState('all')
+  
   const [dialogOpen, setDialog]   = useState(false)
+  const [editDialogOpen, setEditDialog] = useState(false)
+  const [editingUser, setEditingUser]   = useState<Agent | null>(null)
+  
   const [submitting, setSub]      = useState(false)
   const [form, setForm]           = useState({ ...EMPTY_FORM })
+  const [editForm, setEditForm]   = useState({ ...EMPTY_FORM })
 
   const fetchAgents = useCallback(async () => {
     setLoading(true)
@@ -123,6 +128,52 @@ export default function AgentsPage() {
     } finally { setSub(false) }
   }
 
+  const openEdit = (user: Agent) => {
+    setEditingUser(user)
+    setEditForm({
+      nom: user.nom,
+      prenom: user.prenom || '',
+      username: user.username,
+      email: user.email || '',
+      telephone: user.telephone || '',
+      password: '', // blank unless changing
+      role_id: user.roles[0]?.id_role.toString() || '',
+      niveau: user.scopes[0]?.niveau || 'NATIONAL',
+    })
+    setEditDialog(true)
+  }
+
+  const handleUpdate = async () => {
+    if (!editingUser || !editForm.nom || !editForm.role_id) {
+      Swal.fire({ icon: 'warning', title: 'Champs requis',
+        text: 'Le nom et le rôle sont obligatoires.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+      return
+    }
+    setSub(true)
+    try {
+      const payload: any = {
+        nom: editForm.nom,
+        prenom: editForm.prenom || null,
+        email: editForm.email || null,
+        telephone: editForm.telephone || null,
+        role_ids: [parseInt(editForm.role_id)],
+        scopes: [{ niveau: editForm.niveau, actif: true }],
+      }
+      if (editForm.password) payload.password = editForm.password
+
+      await api.put(`/users/${editingUser.id_user}`, payload)
+      Swal.fire({ icon: 'success', title: 'User mis à jour !', timer: 1500,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      setEditDialog(false)
+      fetchAgents()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Mise à jour impossible.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setSub(false) }
+  }
+
   const handleToggle = async (agent: Agent) => {
     try {
       await api.put(`/users/${agent.id_user}`, { actif: !agent.actif })
@@ -170,13 +221,13 @@ export default function AgentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Gestion des Users</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Créez, gérez et suivez les users de terrain
+          <h2 className="text-2xl font-bold text-white">Gestion des Users</h2>
+          <p className="text-white/70 text-sm mt-1">
+            Créez, gérez et suivez les users de la plateforme
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchAgents} title="Rafraîchir">
+          <Button variant="outline" size="icon" onClick={fetchAgents} title="Rafraîchir" className="border-white/20 text-white hover:bg-white/10">
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialog}>
@@ -185,59 +236,59 @@ export default function AgentsPage() {
                 <Plus className="h-4 w-4" /> New User
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[540px] bg-card border-border">
+            <DialogContent className="sm:max-w-[540px] bg-card border-white/20">
               <DialogHeader>
-                <DialogTitle className="text-foreground">Créer un User</DialogTitle>
+                <DialogTitle className="text-white">Créer un User</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 pt-2">
+              <div className="space-y-4 pt-2 text-white">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label>Nom <span className="text-red-400">*</span></Label>
+                    <Label className="text-white">Nom <span className="text-red-400">*</span></Label>
                     <Input placeholder="Dupont" value={form.nom}
                       onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
-                      className="bg-muted border-border" />
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
                   </div>
                   <div className="space-y-1">
-                    <Label>Prénom</Label>
+                    <Label className="text-white">Prénom</Label>
                     <Input placeholder="Jean" value={form.prenom}
                       onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))}
-                      className="bg-muted border-border" />
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label>Identifiant (username) <span className="text-red-400">*</span></Label>
+                  <Label className="text-white">Identifiant (username) <span className="text-red-400">*</span></Label>
                   <Input placeholder="jean.dupont" value={form.username}
                     onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-                    className="bg-muted border-border" />
+                    className="bg-muted border-white/20 text-white placeholder:text-white/40" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label>Email</Label>
+                    <Label className="text-white">Email</Label>
                     <Input type="email" placeholder="jean@health.local" value={form.email}
                       onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                      className="bg-muted border-border" />
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
                   </div>
                   <div className="space-y-1">
-                    <Label>Téléphone</Label>
+                    <Label className="text-white">Téléphone</Label>
                     <Input placeholder="+22600000001" value={form.telephone}
                       onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
-                      className="bg-muted border-border" />
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label>Mot de passe <span className="text-red-400">*</span> <span className="text-xs text-muted-foreground">(min 8 caractères)</span></Label>
+                  <Label className="text-white">Mot de passe <span className="text-red-400">*</span> <span className="text-xs text-white/50">(min 8 caractères)</span></Label>
                   <Input type="password" placeholder="••••••••" value={form.password}
                     onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                    className="bg-muted border-border" />
+                    className="bg-muted border-white/20 text-white placeholder:text-white/40" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label>Rôle <span className="text-red-400">*</span></Label>
+                    <Label className="text-white">Rôle <span className="text-red-400">*</span></Label>
                     <Select value={form.role_id} onValueChange={v => setForm(f => ({ ...f, role_id: v }))}>
-                      <SelectTrigger className="bg-muted border-border">
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
                         <SelectValue placeholder="Sélectionner" />
                       </SelectTrigger>
-                      <SelectContent className="bg-card border-border">
+                      <SelectContent className="bg-card border-white/20 text-white">
                         {roles.map(r => (
                           <SelectItem key={r.id_role} value={String(r.id_role)}>{r.nom}</SelectItem>
                         ))}
@@ -245,22 +296,105 @@ export default function AgentsPage() {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label>Zone géographique <span className="text-red-400">*</span></Label>
+                    <Label className="text-white">Zone géographique <span className="text-red-400">*</span></Label>
                     <Select value={form.niveau} onValueChange={v => setForm(f => ({ ...f, niveau: v }))}>
-                      <SelectTrigger className="bg-muted border-border">
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-card border-border">
+                      <SelectContent className="bg-card border-white/20 text-white">
                         {NIVEAUX.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="outline" onClick={() => setDialog(false)}>Annuler</Button>
+                  <Button variant="outline" onClick={() => setDialog(false)} className="border-white/20 text-white">Annuler</Button>
                   <Button onClick={handleCreate} disabled={submitting}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer l\'agent'}
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer le User'}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Modal */}
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialog}>
+            <DialogContent className="sm:max-w-[540px] bg-card border-white/20">
+              <DialogHeader>
+                <DialogTitle className="text-white">Mettre à jour le User</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2 text-white">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Nom <span className="text-red-400">*</span></Label>
+                    <Input placeholder="Dupont" value={editForm.nom}
+                      onChange={e => setEditForm(f => ({ ...f, nom: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Prénom</Label>
+                    <Input placeholder="Jean" value={editForm.prenom}
+                      onChange={e => setEditForm(f => ({ ...f, prenom: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-white">Identifiant (Lecture seule)</Label>
+                  <Input value={editForm.username} disabled
+                    className="bg-muted/50 border-white/10 text-white/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Email</Label>
+                    <Input type="email" placeholder="jean@health.local" value={editForm.email}
+                      onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Téléphone</Label>
+                    <Input placeholder="+22600000001" value={editForm.telephone}
+                      onChange={e => setEditForm(f => ({ ...f, telephone: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-white">Nouveau mot de passe <span className="text-xs text-white/50">(Laisser vide pour ne pas modifier)</span></Label>
+                  <Input type="password" placeholder="••••••••" value={editForm.password}
+                    onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))}
+                    className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Rôle <span className="text-red-400">*</span></Label>
+                    <Select value={editForm.role_id} onValueChange={v => setEditForm(f => ({ ...f, role_id: v }))}>
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-white/20 text-white">
+                        {roles.map(r => (
+                          <SelectItem key={r.id_role} value={String(r.id_role)}>{r.nom}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Zone géographique <span className="text-red-400">*</span></Label>
+                    <Select value={editForm.niveau} onValueChange={v => setEditForm(f => ({ ...f, niveau: v }))}>
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-white/20 text-white">
+                        {NIVEAUX.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setEditDialog(false)} className="border-white/20 text-white">Annuler</Button>
+                  <Button onClick={handleUpdate} disabled={submitting}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mise à jour...</> : 'Mettre à jour'}
                   </Button>
                 </div>
               </div>
@@ -274,14 +408,14 @@ export default function AgentsPage() {
         {stats.map((s, i) => {
           const Icon = s.icon
           return (
-            <Card key={i} className="border-border">
+            <Card key={i} className="border-white/20 bg-card/50">
               <CardContent className="flex items-center gap-3 pt-4 pb-4">
                 <div className={cn('p-2.5 rounded-xl', s.bg)}>
                   <Icon className={cn('h-5 w-5', s.color)} />
                 </div>
                 <div>
-                  <div className={cn('text-2xl font-bold', s.color)}>{s.value}</div>
-                  <div className="text-xs text-muted-foreground">{s.label}</div>
+                  <div className={cn('text-2xl font-bold text-white')}>{s.value}</div>
+                  <div className="text-xs text-white/70">{s.label}</div>
                 </div>
               </CardContent>
             </Card>
@@ -292,16 +426,16 @@ export default function AgentsPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
           <Input placeholder="Rechercher par nom, identifiant, email..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="pl-9 bg-muted border-border focus:border-primary" />
+            className="pl-9 bg-card border-white/20 text-white placeholder:text-white/40 focus:border-white" />
         </div>
         <Select value={statusFilter} onValueChange={setStatus}>
-          <SelectTrigger className="w-[160px] bg-muted border-border">
+          <SelectTrigger className="w-[160px] bg-card border-white/20 text-white">
             <SelectValue placeholder="Statut" />
           </SelectTrigger>
-          <SelectContent className="bg-card border-border">
+          <SelectContent className="bg-card border-white/20 text-white">
             <SelectItem value="all">Tous</SelectItem>
             <SelectItem value="active">Actifs</SelectItem>
             <SelectItem value="inactive">Inactifs</SelectItem>
@@ -310,109 +444,112 @@ export default function AgentsPage() {
       </div>
 
       {/* Table */}
-      <Card className="border-border overflow-hidden">
+      <Card className="border-white/20 bg-card overflow-hidden">
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center h-48 gap-3 text-muted-foreground">
+            <div className="flex items-center justify-center h-48 gap-3 text-white/70">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span>Chargement des agents...</span>
+              <span>Chargement des users...</span>
             </div>
           ) : (
-            <Table>
+            <Table className="border-collapse">
               <TableHeader>
-                <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="text-muted-foreground font-medium">User</TableHead>
-                  <TableHead className="text-muted-foreground font-medium">Contact</TableHead>
-                  <TableHead className="text-muted-foreground font-medium">Rôles</TableHead>
-                  <TableHead className="text-muted-foreground font-medium">Zone</TableHead>
-                  <TableHead className="text-muted-foreground font-medium">Statut</TableHead>
-                  <TableHead className="w-[50px]" />
+                <TableRow className="border-white/20 bg-white/5 hover:bg-white/5">
+                  <TableHead className="text-white font-semibold">User</TableHead>
+                  <TableHead className="text-white font-semibold">Contact</TableHead>
+                  <TableHead className="text-white font-semibold">Rôles</TableHead>
+                  <TableHead className="text-white font-semibold">Zone</TableHead>
+                  <TableHead className="text-white font-semibold">Statut</TableHead>
+                  <TableHead className="w-[50px] border-white/20" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map(agent => (
-                  <TableRow key={agent.id_user} className="border-border hover:bg-muted/20">
-                    <TableCell>
+                  <TableRow key={agent.id_user} className="border-white/20 hover:bg-white/5">
+                    <TableCell className="border-white/20 border-b">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
-                          <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">
+                          <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold border border-primary/30">
                             {getInitials(agent.nom, agent.prenom)}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium text-foreground text-sm">
+                          <p className="font-medium text-white text-sm">
                             {agent.nom} {agent.prenom ?? ''}
                           </p>
-                          <p className="text-xs text-muted-foreground">@{agent.username}</p>
+                          <p className="text-xs text-white/60">@{agent.username}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-white/20 border-b text-white/80">
                       <div className="space-y-0.5">
                         {agent.email && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5 text-xs">
                             <Mail className="h-3 w-3" />{agent.email}
                           </div>
                         )}
                         {agent.telephone && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5 text-xs">
                             <Phone className="h-3 w-3" />{agent.telephone}
                           </div>
                         )}
                         {!agent.email && !agent.telephone && (
-                          <span className="text-xs text-muted-foreground/50">—</span>
+                          <span className="text-xs opacity-50">—</span>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-white/20 border-b">
                       <div className="flex flex-wrap gap-1">
                         {agent.roles.length === 0
-                          ? <span className="text-xs text-muted-foreground/50">Aucun</span>
+                          ? <span className="text-xs text-white/50">Aucun</span>
                           : agent.roles.map(r => (
                             <Badge key={r.id_role} variant="outline"
-                              className={cn('text-xs px-1.5', ROLE_COLORS[r.code] ?? 'bg-muted text-foreground')}>
+                              className={cn('text-xs px-1.5', ROLE_COLORS[r.code] ?? 'bg-white/10 text-white')}>
                               {r.code.replace('_', ' ')}
                             </Badge>
                           ))}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-white/20 border-b">
                       <div className="flex flex-wrap gap-1">
                         {agent.scopes.length === 0
-                          ? <span className="text-xs text-muted-foreground/50">—</span>
+                          ? <span className="text-xs text-white/50">—</span>
                           : agent.scopes.map((s, i) => (
-                            <div key={i} className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3 text-primary/60" />{s.niveau}
+                            <div key={i} className="flex items-center gap-1 text-xs text-white/80">
+                              <MapPin className="h-3 w-3 text-primary" />{s.niveau}
                             </div>
                           ))}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-white/20 border-b">
                       <Badge variant="outline" className={cn('text-xs',
                         agent.actif
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                          : 'bg-red-500/10 text-red-400 border-red-500/30'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                          : 'bg-red-500/20 text-red-300 border-red-500/50'
                       )}>
                         {agent.actif ? 'Actif' : 'Inactif'}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="border-white/20 border-b text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-white/10 text-white">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-card border-border">
+                        <DropdownMenuContent align="end" className="bg-card border-white/20 text-white">
+                          <DropdownMenuItem onClick={() => openEdit(agent)} className="cursor-pointer hover:bg-white/10 focus:bg-white/10 focus:text-white">
+                            <Edit className="mr-2 h-4 w-4 text-sky-400" />Modifier
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleToggle(agent)}
-                            className="cursor-pointer">
+                            className="cursor-pointer hover:bg-white/10 focus:bg-white/10 focus:text-white">
                             {agent.actif
                               ? <><UserX className="mr-2 h-4 w-4 text-amber-400" />Désactiver</>
                               : <><UserCheck className="mr-2 h-4 w-4 text-emerald-400" />Activer</>}
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-border" />
+                          <DropdownMenuSeparator className="bg-white/20" />
                           <DropdownMenuItem onClick={() => handleDelete(agent)}
-                            className="text-destructive focus:text-destructive cursor-pointer">
+                            className="text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer">
                             <Trash2 className="mr-2 h-4 w-4" />Supprimer
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -424,7 +561,7 @@ export default function AgentsPage() {
             </Table>
           )}
           {!loading && filtered.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-3">
+            <div className="flex flex-col items-center justify-center h-48 text-white/50 gap-3">
               <Users className="h-10 w-10 opacity-30" />
               <p className="text-sm">Aucun User trouvé</p>
             </div>
@@ -434,7 +571,7 @@ export default function AgentsPage() {
 
       {/* Footer count */}
       {!loading && (
-        <p className="text-xs text-muted-foreground text-right">
+        <p className="text-xs text-white/60 text-right">
           {filtered.length} user{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
           {filtered.length !== agents.length && ` sur ${agents.length}`}
         </p>

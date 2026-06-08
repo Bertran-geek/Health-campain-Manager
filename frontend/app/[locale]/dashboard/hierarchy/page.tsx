@@ -1,169 +1,99 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronRight, ChevronDown, MapPin, Building2, Home, Plus, Search, Filter } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { ChevronRight, ChevronDown, MapPin, Building2, Home, Plus, Loader2, Search } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import api from '@/lib/api'
+import Swal from 'sweetalert2'
 import { cn } from '@/lib/utils'
-import { mockCountries, mockRegions, mockDistricts, mockHealthAreas, mockVillages } from '@/lib/mock-data'
+import { Input } from '@/components/ui/input'
 
-interface TreeNode {
-  id: string
+type Level = 'region' | 'departement' | 'phc' | 'chw'
+
+interface BaseNode {
+  id: number
   name: string
   code: string
-  population: number
-  type: 'country' | 'region' | 'district' | 'health_area' | 'village'
-  children?: TreeNode[]
-  data?: Record<string, unknown>
+  level: Level
+  parentId?: number
+  isExpanded: boolean
+  childrenLoaded: boolean
+  children: BaseNode[]
 }
 
-function buildHierarchyTree(): TreeNode[] {
-  return mockCountries.map(country => ({
-    id: country.id,
-    name: country.name,
-    code: country.code,
-    population: country.population,
-    type: 'country' as const,
-    children: mockRegions
-      .filter(r => r.countryId === country.id)
-      .map(region => ({
-        id: region.id,
-        name: region.name,
-        code: region.code,
-        population: region.population,
-        type: 'region' as const,
-        children: mockDistricts
-          .filter(d => d.regionId === region.id)
-          .map(district => ({
-            id: district.id,
-            name: district.name,
-            code: district.code,
-            population: district.population,
-            type: 'district' as const,
-            data: { healthFacilitiesCount: district.healthFacilitiesCount },
-            children: mockHealthAreas
-              .filter(ha => ha.districtId === district.id)
-              .map(healthArea => ({
-                id: healthArea.id,
-                name: healthArea.name,
-                code: healthArea.code,
-                population: healthArea.population,
-                type: 'health_area' as const,
-                data: { healthCenterName: healthArea.healthCenterName },
-                children: mockVillages
-                  .filter(v => v.healthAreaId === healthArea.id)
-                  .map(village => ({
-                    id: village.id,
-                    name: village.name,
-                    code: village.code,
-                    population: village.population,
-                    type: 'village' as const,
-                    data: {
-                      householdsCount: village.householdsCount,
-                      childrenUnder5: village.childrenUnder5,
-                      accessibility: village.accessibility,
-                    },
-                  })),
-              })),
-          })),
-      })),
-  }))
+const typeIcons = {
+  region: <Building2 className="h-4 w-4" />,
+  departement: <MapPin className="h-4 w-4" />,
+  phc: <Plus className="h-4 w-4 rotate-45" />,
+  chw: <Home className="h-4 w-4" />,
 }
 
-function TreeItem({ 
-  node, 
-  level = 0, 
-  onSelect 
-}: { 
-  node: TreeNode
-  level?: number
-  onSelect: (node: TreeNode) => void 
+const typeColors = {
+  region: 'bg-primary/20 text-primary',
+  departement: 'bg-info/20 text-blue-400',
+  phc: 'bg-warning/20 text-amber-400',
+  chw: 'bg-success/20 text-emerald-400',
+}
+
+function NodeItem({
+  node, depth, onToggle, onCreateChild
+}: {
+  node: BaseNode, depth: number,
+  onToggle: (node: BaseNode) => void,
+  onCreateChild: (node: BaseNode) => void
 }) {
-  const [isExpanded, setIsExpanded] = useState(level < 2)
-  const hasChildren = node.children && node.children.length > 0
-
-  const typeColors = {
-    country: 'bg-primary/20 text-primary',
-    region: 'bg-info/20 text-info',
-    district: 'bg-success/20 text-success',
-    health_area: 'bg-warning/20 text-warning',
-    village: 'bg-accent/20 text-accent',
-  }
-
-  const typeIcons = {
-    country: <Building2 className="h-4 w-4" />,
-    region: <MapPin className="h-4 w-4" />,
-    district: <MapPin className="h-4 w-4" />,
-    health_area: <Plus className="h-4 w-4 rotate-45" />,
-    village: <Home className="h-4 w-4" />,
-  }
-
   return (
-    <div>
-      <div
+    <div className="flex flex-col text-white">
+      <div 
         className={cn(
-          'flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors',
-          'text-sm'
+          "flex items-center justify-between p-3 border-b border-white/10 hover:bg-white/5 transition-colors cursor-pointer",
+          depth === 0 ? "bg-white/5 font-semibold" : ""
         )}
-        style={{ paddingLeft: `${level * 16 + 8}px` }}
-        onClick={() => onSelect(node)}
+        style={{ paddingLeft: `${depth * 2 + 1}rem` }}
+        onClick={() => onToggle(node)}
       >
-        {hasChildren ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsExpanded(!isExpanded)
-            }}
-            className="p-0.5 hover:bg-muted rounded"
+        <div className="flex items-center gap-3">
+          {node.level !== 'chw' ? (
+            <button className="p-1 hover:bg-white/10 rounded">
+              {node.isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          ) : <span className="w-6" />}
+          
+          <Badge variant="outline" className={cn('px-1.5 py-0.5 border-white/20', typeColors[node.level])}>
+            {typeIcons[node.level]}
+          </Badge>
+          <span>{node.name} <span className="text-white/40 text-xs ml-2">({node.code})</span></span>
+        </div>
+
+        {node.level !== 'chw' && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-7 border border-white/20 hover:bg-white/10 text-xs px-2"
+            onClick={(e) => { e.stopPropagation(); onCreateChild(node) }}
           >
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-        ) : (
-          <span className="w-5" />
+            <Plus className="h-3 w-3 mr-1" />
+            Ajouter {node.level === 'region' ? 'Département' : node.level === 'departement' ? 'CSPS/PHC' : 'ASBC/CHW'}
+          </Button>
         )}
-        <Badge variant="outline" className={cn('px-1.5 py-0.5', typeColors[node.type])}>
-          {typeIcons[node.type]}
-        </Badge>
-        <span className="font-medium text-foreground">{node.name}</span>
-        <span className="text-muted-foreground text-xs ml-auto">
-          {node.population.toLocaleString()}
-        </span>
       </div>
-      {isExpanded && hasChildren && (
-        <div>
-          {node.children?.map(child => (
-            <TreeItem key={child.id} node={child} level={level + 1} onSelect={onSelect} />
+
+      {node.isExpanded && (
+        <div className="flex flex-col">
+          {!node.childrenLoaded && (
+            <div className="p-4 text-center text-white/50 text-sm flex items-center justify-center gap-2" style={{ paddingLeft: `${(depth + 1) * 2 + 1}rem` }}>
+              <Loader2 className="h-4 w-4 animate-spin" /> Chargement...
+            </div>
+          )}
+          {node.childrenLoaded && node.children.length === 0 && (
+            <div className="p-4 text-white/40 text-sm italic" style={{ paddingLeft: `${(depth + 1) * 2 + 1}rem` }}>
+              Aucun élément trouvé.
+            </div>
+          )}
+          {node.childrenLoaded && node.children.map(child => (
+            <NodeItem key={`${child.level}-${child.id}`} node={child} depth={depth + 1} onToggle={onToggle} onCreateChild={onCreateChild} />
           ))}
         </div>
       )}
@@ -172,258 +102,223 @@ function TreeItem({
 }
 
 export default function HierarchyPage() {
-  const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [filterType, setFilterType] = useState<string>('all')
-  const hierarchyTree = buildHierarchyTree()
+  const [regions, setRegions] = useState<BaseNode[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch]   = useState('')
 
-  const getTypeLabel = (type: TreeNode['type']) => {
-    const labels = {
-      country: 'Country',
-      region: 'Region',
-      district: 'District',
-      health_area: 'Health Area',
-      village: 'Village',
+  const fetchRoot = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/geography/regions?page_size=100')
+      const items = res.data.items || []
+      setRegions(items.map((r: any) => ({
+        id: r.id_region,
+        name: r.nom_region,
+        code: r.code || `REG-${r.id_region}`,
+        level: 'region',
+        isExpanded: false,
+        childrenLoaded: false,
+        children: []
+      })))
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les régions.', background: '#0D1B2E', color: '#fff' })
+    } finally {
+      setLoading(false)
     }
-    return labels[type]
+  }, [])
+
+  useEffect(() => { fetchRoot() }, [fetchRoot])
+
+  const loadChildren = async (node: BaseNode): Promise<BaseNode[]> => {
+    try {
+      let endpoint = ''
+      let mapper = (item: any): BaseNode => ({ id: 0, name: '', code: '', level: 'chw', isExpanded: false, childrenLoaded: false, children: [] })
+      
+      if (node.level === 'region') {
+        endpoint = `/geography/departements?region_id=${node.id}&page_size=100`
+        mapper = (d: any) => ({ id: d.id_dpt, name: d.nom_dpt, code: d.code || `DPT-${d.id_dpt}`, level: 'departement', parentId: node.id, isExpanded: false, childrenLoaded: false, children: [] })
+      } else if (node.level === 'departement') {
+        endpoint = `/geography/phcs?dpt_id=${node.id}&page_size=100`
+        mapper = (p: any) => ({ id: p.id_phc, name: p.nom_phc, code: p.code || `PHC-${p.id_phc}`, level: 'phc', parentId: node.id, isExpanded: false, childrenLoaded: false, children: [] })
+      } else if (node.level === 'phc') {
+        endpoint = `/geography/chws?phc_id=${node.id}&page_size=100`
+        mapper = (c: any) => ({ id: c.id_chw, name: `${c.nom} ${c.prenom || ''}`.trim(), code: c.code || `CHW-${c.id_chw}`, level: 'chw', parentId: node.id, isExpanded: false, childrenLoaded: false, children: [] })
+      } else {
+        return []
+      }
+
+      const res = await api.get(endpoint)
+      return (res.data.items || []).map(mapper)
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les sous-éléments.', background: '#0D1B2E', color: '#fff' })
+      return []
+    }
   }
+
+  const updateNodeInTree = (nodes: BaseNode[], targetId: number, targetLevel: Level, updater: (n: BaseNode) => BaseNode): BaseNode[] => {
+    return nodes.map(n => {
+      if (n.id === targetId && n.level === targetLevel) return updater({ ...n })
+      if (n.children.length > 0) return { ...n, children: updateNodeInTree(n.children, targetId, targetLevel, updater) }
+      return n
+    })
+  }
+
+  const handleToggle = async (node: BaseNode) => {
+    if (node.level === 'chw') return
+
+    if (node.isExpanded) {
+      setRegions(prev => updateNodeInTree(prev, node.id, node.level, n => ({ ...n, isExpanded: false })))
+      return
+    }
+
+    // Expand and load if needed
+    setRegions(prev => updateNodeInTree(prev, node.id, node.level, n => ({ ...n, isExpanded: true })))
+    
+    if (!node.childrenLoaded) {
+      const children = await loadChildren(node)
+      setRegions(prev => updateNodeInTree(prev, node.id, node.level, n => ({ ...n, children, childrenLoaded: true })))
+    }
+  }
+
+  const handleCreateRoot = async () => {
+    const { value: formValues } = await Swal.fire({
+      title: 'Créer une Région',
+      html:
+        '<input id="swal-nom" class="swal2-input" placeholder="Nom de la région" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">' +
+        '<input id="swal-code" class="swal2-input" placeholder="Code (Optionnel)" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Créer',
+      cancelButtonText: 'Annuler',
+      background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8',
+      preConfirm: () => {
+        return {
+          nom_region: (document.getElementById('swal-nom') as HTMLInputElement).value,
+          code: (document.getElementById('swal-code') as HTMLInputElement).value
+        }
+      }
+    })
+
+    if (formValues && formValues.nom_region) {
+      try {
+        await api.post('/geography/regions', { nom_region: formValues.nom_region, code: formValues.code || undefined })
+        Swal.fire({ icon: 'success', title: 'Région créée !', timer: 1500, showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2' })
+        fetchRoot()
+      } catch (err: any) {
+        Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Création impossible.', background: '#0D1B2E', color: '#E2EAF2' })
+      }
+    }
+  }
+
+  const handleCreateChild = async (node: BaseNode) => {
+    let title = ''
+    let endpoint = ''
+    let payloadBuilder = (v: any) => ({})
+    
+    if (node.level === 'region') {
+      title = `Nouveau Département dans ${node.name}`
+      endpoint = '/geography/departements'
+      payloadBuilder = (v: any) => ({ nom_dpt: v.nom, code: v.code || undefined, id_region: node.id })
+    } else if (node.level === 'departement') {
+      title = `Nouveau CSPS/PHC dans ${node.name}`
+      endpoint = '/geography/phcs'
+      payloadBuilder = (v: any) => ({ nom_phc: v.nom, code: v.code || undefined, id_dpt: node.id })
+    } else if (node.level === 'phc') {
+      title = `Nouvel ASBC/CHW rattaché à ${node.name}`
+      endpoint = '/geography/chws'
+      payloadBuilder = (v: any) => ({ nom: v.nom, prenom: v.prenom || '', code: v.code || undefined, id_phc: node.id, actif: true })
+    }
+
+    const { value: formValues } = await Swal.fire({
+      title,
+      html:
+        `<input id="swal-nom" class="swal2-input" placeholder="Nom ${node.level === 'phc' ? 'de famille' : ''}" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">` +
+        (node.level === 'phc' ? '<input id="swal-prenom" class="swal2-input" placeholder="Prénom" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">' : '') +
+        '<input id="swal-code" class="swal2-input" placeholder="Code (Optionnel)" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Créer',
+      cancelButtonText: 'Annuler',
+      background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8',
+      preConfirm: () => {
+        return {
+          nom: (document.getElementById('swal-nom') as HTMLInputElement).value,
+          prenom: node.level === 'phc' ? (document.getElementById('swal-prenom') as HTMLInputElement).value : undefined,
+          code: (document.getElementById('swal-code') as HTMLInputElement).value
+        }
+      }
+    })
+
+    if (formValues && formValues.nom) {
+      try {
+        await api.post(endpoint, payloadBuilder(formValues))
+        Swal.fire({ icon: 'success', title: 'Créé avec succès !', timer: 1500, showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2' })
+        
+        // Reload children for this node
+        const children = await loadChildren(node)
+        setRegions(prev => updateNodeInTree(prev, node.id, node.level, n => ({ ...n, children, childrenLoaded: true, isExpanded: true })))
+      } catch (err: any) {
+        Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Création impossible.', background: '#0D1B2E', color: '#E2EAF2' })
+      }
+    }
+  }
+
+  const filteredRegions = regions.filter(r => r.name.toLowerCase().includes(search.toLowerCase()) || r.code.toLowerCase().includes(search.toLowerCase()))
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Administrative Hierarchy</h2>
-          <p className="text-muted-foreground">
-            Manage geographic units from country to village level
+          <h2 className="text-2xl font-bold text-white">Organigramme Géographique</h2>
+          <p className="text-white/70 text-sm mt-1">
+            Gérez l'arborescence des zones (Régions, Départements, CSPS, ASBC)
           </p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Location
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Add New Location</DialogTitle>
-              <DialogDescription>
-                Add a new geographic unit to the hierarchy.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">Location Type</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="region">Region</SelectItem>
-                    <SelectItem value="district">District</SelectItem>
-                    <SelectItem value="health_area">Health Area</SelectItem>
-                    <SelectItem value="village">Village</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" placeholder="Enter location name" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="code">Code</Label>
-                <Input id="code" placeholder="Enter location code" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="population">Population</Label>
-                <Input id="population" type="number" placeholder="Enter population" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="parent">Parent Location</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select parent" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mockRegions.map(r => (
-                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button className="w-full bg-primary hover:bg-primary/90">
-                Create Location
-              </Button>
+        <Button onClick={handleCreateRoot} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+          <Plus className="h-4 w-4" /> Créer une Région
+        </Button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
+        <Input 
+          placeholder="Rechercher une région..." 
+          value={search} 
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9 bg-card border-white/20 text-white focus:border-white w-full sm:w-1/3" 
+        />
+      </div>
+
+      <Card className="border-white/20 bg-card overflow-hidden">
+        <CardHeader className="bg-white/5 border-b border-white/10 pb-4">
+          <CardTitle className="text-lg text-white">Hiérarchie Nationale</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center h-64 gap-3 text-white/70">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span>Chargement...</span>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search locations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-muted border-transparent focus:border-primary"
-          />
-        </div>
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-[180px]">
-            <Filter className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Filter by type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="country">Countries</SelectItem>
-            <SelectItem value="region">Regions</SelectItem>
-            <SelectItem value="district">Districts</SelectItem>
-            <SelectItem value="health_area">Health Areas</SelectItem>
-            <SelectItem value="village">Villages</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Hierarchy Tree */}
-        <Card className="lg:col-span-1">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Location Tree</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[600px] px-4 pb-4">
-              {hierarchyTree.map(node => (
-                <TreeItem 
-                  key={node.id} 
-                  node={node} 
-                  onSelect={setSelectedNode} 
+          ) : filteredRegions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 text-white/50 gap-3">
+              <MapPin className="h-10 w-10 opacity-30" />
+              <p>Aucune région trouvée.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col w-full">
+              {filteredRegions.map(region => (
+                <NodeItem 
+                  key={`region-${region.id}`} 
+                  node={region} 
+                  depth={0} 
+                  onToggle={handleToggle} 
+                  onCreateChild={handleCreateChild} 
                 />
               ))}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Details Panel */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">
-              {selectedNode ? selectedNode.name : 'Select a Location'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {selectedNode ? (
-              <div className="space-y-6">
-                {/* Location Info */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-4 rounded-lg bg-muted/50">
-                    <div className="text-sm text-muted-foreground">Type</div>
-                    <div className="text-lg font-semibold text-foreground">
-                      {getTypeLabel(selectedNode.type)}
-                    </div>
-                  </div>
-                  <div className="p-4 rounded-lg bg-muted/50">
-                    <div className="text-sm text-muted-foreground">Code</div>
-                    <div className="text-lg font-semibold text-foreground">
-                      {selectedNode.code}
-                    </div>
-                  </div>
-                  <div className="p-4 rounded-lg bg-muted/50">
-                    <div className="text-sm text-muted-foreground">Population</div>
-                    <div className="text-lg font-semibold text-foreground">
-                      {selectedNode.population.toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="p-4 rounded-lg bg-muted/50">
-                    <div className="text-sm text-muted-foreground">Sub-units</div>
-                    <div className="text-lg font-semibold text-foreground">
-                      {selectedNode.children?.length || 0}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Data */}
-                {selectedNode.data && Object.keys(selectedNode.data).length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground mb-3">Additional Information</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {Object.entries(selectedNode.data).map(([key, value]) => (
-                        <div key={key} className="p-3 rounded-lg border border-border">
-                          <div className="text-xs text-muted-foreground capitalize">
-                            {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ')}
-                          </div>
-                          <div className="text-sm font-medium text-foreground mt-1">
-                            {typeof value === 'number' ? value.toLocaleString() : String(value)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Children Table */}
-                {selectedNode.children && selectedNode.children.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground mb-3">
-                      Sub-locations ({selectedNode.children.length})
-                    </h4>
-                    <div className="rounded-lg border border-border overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead>Name</TableHead>
-                            <TableHead>Code</TableHead>
-                            <TableHead className="text-right">Population</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedNode.children.map(child => (
-                            <TableRow 
-                              key={child.id}
-                              className="cursor-pointer hover:bg-muted/30"
-                              onClick={() => setSelectedNode(child)}
-                            >
-                              <TableCell className="font-medium">{child.name}</TableCell>
-                              <TableCell>{child.code}</TableCell>
-                              <TableCell className="text-right">
-                                {child.population.toLocaleString()}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button variant="ghost" size="sm">
-                                  View
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex gap-3 pt-4 border-t border-border">
-                  <Button variant="outline">Edit Location</Button>
-                  <Button variant="outline" className="text-destructive hover:text-destructive">
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-                <div className="text-center">
-                  <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Select a location from the tree to view details</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
