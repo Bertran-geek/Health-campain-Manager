@@ -103,7 +103,7 @@ CREATE TABLE user_scope (
     id_phc INT NULL,
     id_chw INT NULL,
     actif BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (id_user) REFERENCES user(id_user),
+    FOREIGN KEY (id_user) REFERENCES user(id_user) ON DELETE CASCADE,
     FOREIGN KEY (id_region) REFERENCES region(id_region),
     FOREIGN KEY (id_dpt) REFERENCES departement(id_dpt),
     FOREIGN KEY (id_phc) REFERENCES phc(id_phc),

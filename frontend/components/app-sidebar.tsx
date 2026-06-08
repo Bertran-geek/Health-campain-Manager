@@ -24,9 +24,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const navigationItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Hierarchy', href: '/dashboard/hierarchy', icon: Globe },
+  { name: 'Unit of organisation', href: '/dashboard/hierarchy', icon: Globe },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: Megaphone },
-  { name: 'Agents', href: '/dashboard/agents', icon: Users },
+  { name: 'Users', href: '/dashboard/agents', icon: Users },
   { name: 'Data Collection', href: '/dashboard/data-collection', icon: ClipboardList },
   { name: 'Coverage Map', href: '/dashboard/map', icon: Map },
   { name: 'Alerts', href: '/dashboard/alerts', icon: Bell },

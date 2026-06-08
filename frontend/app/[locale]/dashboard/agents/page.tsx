@@ -1,207 +1,421 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
-  Plus,
-  Search,
-  Filter,
-  Phone,
-  Mail,
-  MapPin,
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  UserCheck,
-  UserX,
-  GraduationCap,
-  Users,
+  Plus, Search, Phone, Mail, MapPin, MoreVertical, Edit,
+  Trash2, UserCheck, UserX, Users, Loader2, ShieldCheck, RefreshCw,
 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { mockAgents, mockTeams, mockHealthAreas, mockCampaigns } from '@/lib/mock-data'
-import type { Agent, Team } from '@/lib/types'
+import api from '@/lib/api'
+import Swal from 'sweetalert2'
 
-const agentTypeColors: Record<Agent['agentType'], string> = {
-  vaccinator: 'bg-primary/20 text-primary',
-  recorder: 'bg-info/20 text-info',
-  mobilizer: 'bg-accent/20 text-accent',
-  supervisor: 'bg-warning/20 text-warning',
-  team_leader: 'bg-success/20 text-success',
+interface Role { id_role: number; code: string; nom: string }
+interface Scope { niveau: string; id_region?: number | null }
+interface Agent {
+  id_user: number; username: string; nom: string; prenom?: string
+  email?: string; telephone?: string; actif: boolean
+  roles: Role[]; scopes: Scope[]; created_at: string
 }
 
-const agentStats = [
-  { label: 'Total Agents', value: mockAgents.length, icon: Users, color: 'text-foreground' },
-  { label: 'Active', value: mockAgents.filter(a => a.isActive).length, icon: UserCheck, color: 'text-success' },
-  { label: 'Trained', value: mockAgents.filter(a => a.isTrained).length, icon: GraduationCap, color: 'text-primary' },
-  { label: 'Teams', value: mockTeams.length, icon: Users, color: 'text-info' },
-]
+const ROLE_COLORS: Record<string, string> = {
+  SUPER_ADMIN:       'bg-purple-500/15 text-purple-300 border-purple-500/30',
+  NATIONAL_MANAGER:  'bg-sky-500/15 text-sky-300 border-sky-500/30',
+  REGION_MANAGER:    'bg-teal-500/15 text-teal-300 border-teal-500/30',
+  DPT_MANAGER:       'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  PHC_MANAGER:       'bg-orange-500/15 text-orange-300 border-orange-500/30',
+  CHW:               'bg-green-500/15 text-green-300 border-green-500/30',
+}
 
-export default function AgentsPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [activeTab, setActiveTab] = useState('agents')
+const NIVEAUX = ['NATIONAL', 'REGION', 'DEPARTEMENT', 'PHC', 'CHW']
 
-  const filteredAgents = mockAgents.filter(agent => {
-    const matchesSearch = 
-      `${agent.firstName} ${agent.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.phone.includes(searchQuery)
-    const matchesType = typeFilter === 'all' || agent.agentType === typeFilter
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && agent.isActive) ||
-      (statusFilter === 'inactive' && !agent.isActive) ||
-      (statusFilter === 'trained' && agent.isTrained) ||
-      (statusFilter === 'untrained' && !agent.isTrained)
-    return matchesSearch && matchesType && matchesStatus
+const EMPTY_FORM = {
+  nom: '', prenom: '', username: '', email: '', telephone: '',
+  password: '', role_id: '', niveau: 'NATIONAL',
+}
+
+export default function UsersPage() {
+  const [agents, setAgents]       = useState<Agent[]>([])
+  const [roles, setRoles]         = useState<Role[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [search, setSearch]       = useState('')
+  const [statusFilter, setStatus] = useState('all')
+  
+  const [dialogOpen, setDialog]   = useState(false)
+  const [editDialogOpen, setEditDialog] = useState(false)
+  const [editingUser, setEditingUser]   = useState<Agent | null>(null)
+  
+  const [submitting, setSub]      = useState(false)
+  const [form, setForm]           = useState({ ...EMPTY_FORM })
+  const [editForm, setEditForm]   = useState({ ...EMPTY_FORM })
+
+  const fetchAgents = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/users')
+      setAgents(res.data.items ?? [])
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les users.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setLoading(false) }
+  }, [])
+
+  const fetchRoles = useCallback(async () => {
+    try {
+      const res = await api.get('/users/roles')
+      setRoles(res.data ?? [])
+    } catch { /* silently ignore */ }
+  }, [])
+
+  useEffect(() => { fetchAgents(); fetchRoles() }, [fetchAgents, fetchRoles])
+
+  const filtered = agents.filter(a => {
+    const q = search.toLowerCase()
+    const matchSearch = `${a.nom} ${a.prenom ?? ''} ${a.username} ${a.email ?? ''}`.toLowerCase().includes(q)
+    const matchStatus = statusFilter === 'all'
+      || (statusFilter === 'active' && a.actif)
+      || (statusFilter === 'inactive' && !a.actif)
+    return matchSearch && matchStatus
   })
 
-  const getHealthAreaName = (healthAreaId: string) => {
-    return mockHealthAreas.find(ha => ha.id === healthAreaId)?.name || 'Unknown'
+  const handleCreate = async () => {
+    if (!form.nom || !form.username || !form.password || !form.role_id) {
+      Swal.fire({ icon: 'warning', title: 'Champs requis',
+        text: 'Nom, identifiant, rôle et mot de passe sont obligatoires.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+      return
+    }
+    setSub(true)
+    try {
+      await api.post('/users', {
+        username:  form.username,
+        nom:       form.nom,
+        prenom:    form.prenom || undefined,
+        email:     form.email  || undefined,
+        telephone: form.telephone || undefined,
+        password:  form.password,
+        actif:     true,
+        role_ids:  [parseInt(form.role_id)],
+        scopes:    [{ niveau: form.niveau, actif: true }],
+      })
+      Swal.fire({ icon: 'success', title: 'User créé !', timer: 1500,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      setForm({ ...EMPTY_FORM })
+      setDialog(false)
+      fetchAgents()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Échec de la création.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setSub(false) }
   }
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName[0]}${lastName[0]}`.toUpperCase()
+  const openEdit = (user: Agent) => {
+    setEditingUser(user)
+    setEditForm({
+      nom: user.nom,
+      prenom: user.prenom || '',
+      username: user.username,
+      email: user.email || '',
+      telephone: user.telephone || '',
+      password: '', // blank unless changing
+      role_id: user.roles[0]?.id_role.toString() || '',
+      niveau: user.scopes[0]?.niveau || 'NATIONAL',
+    })
+    setEditDialog(true)
   }
+
+  const handleUpdate = async () => {
+    if (!editingUser || !editForm.nom || !editForm.role_id) {
+      Swal.fire({ icon: 'warning', title: 'Champs requis',
+        text: 'Le nom et le rôle sont obligatoires.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+      return
+    }
+    setSub(true)
+    try {
+      const payload: any = {
+        nom: editForm.nom,
+        prenom: editForm.prenom || null,
+        email: editForm.email || null,
+        telephone: editForm.telephone || null,
+        role_ids: [parseInt(editForm.role_id)],
+        scopes: [{ niveau: editForm.niveau, actif: true }],
+      }
+      if (editForm.password) payload.password = editForm.password
+
+      await api.put(`/users/${editingUser.id_user}`, payload)
+      Swal.fire({ icon: 'success', title: 'User mis à jour !', timer: 1500,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      setEditDialog(false)
+      fetchAgents()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Mise à jour impossible.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    } finally { setSub(false) }
+  }
+
+  const handleToggle = async (agent: Agent) => {
+    try {
+      await api.put(`/users/${agent.id_user}`, { actif: !agent.actif })
+      fetchAgents()
+    } catch {
+      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Modification impossible.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    }
+  }
+
+  const handleDelete = async (agent: Agent) => {
+    const res = await Swal.fire({
+      title: `Supprimer ${agent.nom} ${agent.prenom ?? ''} ?`,
+      text: 'Cette action est irréversible.',
+      icon: 'warning', showCancelButton: true,
+      confirmButtonColor: '#EF4444', cancelButtonColor: '#334155',
+      confirmButtonText: 'Oui, supprimer', cancelButtonText: 'Annuler',
+      background: '#0D1B2E', color: '#E2EAF2',
+    })
+    if (!res.isConfirmed) return
+    try {
+      await api.delete(`/users/${agent.id_user}`)
+      Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1200,
+        showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
+      fetchAgents()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: 'Erreur',
+        text: err.response?.data?.detail || 'Suppression impossible.',
+        background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
+    }
+  }
+
+  const getInitials = (nom: string, prenom?: string) =>
+    `${nom[0]}${prenom ? prenom[0] : ''}`.toUpperCase()
+
+  const stats = [
+    { label: 'Total', value: agents.length, icon: Users,     color: 'text-sky-400',    bg: 'bg-sky-500/10' },
+    { label: 'Actifs', value: agents.filter(a => a.actif).length, icon: UserCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: 'Inactifs', value: agents.filter(a => !a.actif).length, icon: UserX, color: 'text-red-400', bg: 'bg-red-500/10' },
+    { label: 'Rôles', value: roles.length, icon: ShieldCheck, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+  ]
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Agent Management</h2>
-          <p className="text-muted-foreground">
-            Manage field agents and team assignments
+          <h2 className="text-2xl font-bold text-white">Gestion des Users</h2>
+          <p className="text-white/70 text-sm mt-1">
+            Créez, gérez et suivez les users de la plateforme
           </p>
         </div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Agent
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Add New Agent</DialogTitle>
-              <DialogDescription>
-                Register a new field agent for campaign activities.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" placeholder="Enter first name" />
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={fetchAgents} title="Rafraîchir" className="border-white/20 text-white hover:bg-white/10">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialog}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
+                <Plus className="h-4 w-4" /> New User
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[540px] bg-card border-white/20">
+              <DialogHeader>
+                <DialogTitle className="text-white">Créer un User</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2 text-white">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Nom <span className="text-red-400">*</span></Label>
+                    <Input placeholder="Dupont" value={form.nom}
+                      onChange={e => setForm(f => ({ ...f, nom: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Prénom</Label>
+                    <Input placeholder="Jean" value={form.prenom}
+                      onChange={e => setForm(f => ({ ...f, prenom: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" placeholder="Enter last name" />
+                <div className="space-y-1">
+                  <Label className="text-white">Identifiant (username) <span className="text-red-400">*</span></Label>
+                  <Input placeholder="jean.dupont" value={form.username}
+                    onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                    className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Email</Label>
+                    <Input type="email" placeholder="jean@health.local" value={form.email}
+                      onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Téléphone</Label>
+                    <Input placeholder="+22600000001" value={form.telephone}
+                      onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-white">Mot de passe <span className="text-red-400">*</span> <span className="text-xs text-white/50">(min 8 caractères)</span></Label>
+                  <Input type="password" placeholder="••••••••" value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Rôle <span className="text-red-400">*</span></Label>
+                    <Select value={form.role_id} onValueChange={v => setForm(f => ({ ...f, role_id: v }))}>
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-white/20 text-white">
+                        {roles.map(r => (
+                          <SelectItem key={r.id_role} value={String(r.id_role)}>{r.nom}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Zone géographique <span className="text-red-400">*</span></Label>
+                    <Select value={form.niveau} onValueChange={v => setForm(f => ({ ...f, niveau: v }))}>
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-white/20 text-white">
+                        {NIVEAUX.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setDialog(false)} className="border-white/20 text-white">Annuler</Button>
+                  <Button onClick={handleCreate} disabled={submitting}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer le User'}
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" placeholder="+243 XXX XXX XXX" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (Optional)</Label>
-                <Input id="email" type="email" placeholder="agent@health.org" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="agentType">Agent Type</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="vaccinator">Vaccinator</SelectItem>
-                      <SelectItem value="recorder">Recorder</SelectItem>
-                      <SelectItem value="mobilizer">Mobilizer</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="team_leader">Team Leader</SelectItem>
-                    </SelectContent>
-                  </Select>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Modal */}
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialog}>
+            <DialogContent className="sm:max-w-[540px] bg-card border-white/20">
+              <DialogHeader>
+                <DialogTitle className="text-white">Mettre à jour le User</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-2 text-white">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Nom <span className="text-red-400">*</span></Label>
+                    <Input placeholder="Dupont" value={editForm.nom}
+                      onChange={e => setEditForm(f => ({ ...f, nom: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Prénom</Label>
+                    <Input placeholder="Jean" value={editForm.prenom}
+                      onChange={e => setEditForm(f => ({ ...f, prenom: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="healthArea">Health Area</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select area" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockHealthAreas.map(ha => (
-                        <SelectItem key={ha.id} value={ha.id}>
-                          {ha.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-1">
+                  <Label className="text-white">Identifiant (Lecture seule)</Label>
+                  <Input value={editForm.username} disabled
+                    className="bg-muted/50 border-white/10 text-white/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Email</Label>
+                    <Input type="email" placeholder="jean@health.local" value={editForm.email}
+                      onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Téléphone</Label>
+                    <Input placeholder="+22600000001" value={editForm.telephone}
+                      onChange={e => setEditForm(f => ({ ...f, telephone: e.target.value }))}
+                      className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-white">Nouveau mot de passe <span className="text-xs text-white/50">(Laisser vide pour ne pas modifier)</span></Label>
+                  <Input type="password" placeholder="••••••••" value={editForm.password}
+                    onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))}
+                    className="bg-muted border-white/20 text-white placeholder:text-white/40" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-white">Rôle <span className="text-red-400">*</span></Label>
+                    <Select value={editForm.role_id} onValueChange={v => setEditForm(f => ({ ...f, role_id: v }))}>
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
+                        <SelectValue placeholder="Sélectionner" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-white/20 text-white">
+                        {roles.map(r => (
+                          <SelectItem key={r.id_role} value={String(r.id_role)}>{r.nom}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-white">Zone géographique <span className="text-red-400">*</span></Label>
+                    <Select value={editForm.niveau} onValueChange={v => setEditForm(f => ({ ...f, niveau: v }))}>
+                      <SelectTrigger className="bg-muted border-white/20 text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-white/20 text-white">
+                        {NIVEAUX.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setEditDialog(false)} className="border-white/20 text-white">Annuler</Button>
+                  <Button onClick={handleUpdate} disabled={submitting}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mise à jour...</> : 'Mettre à jour'}
+                  </Button>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline">Cancel</Button>
-                <Button className="bg-primary hover:bg-primary/90">Add Agent</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {agentStats.map((stat, index) => {
-          const Icon = stat.icon
+        {stats.map((s, i) => {
+          const Icon = s.icon
           return (
-            <Card key={index}>
-              <CardContent className="flex items-center gap-4 pt-4">
-                <div className={cn('p-2 rounded-lg bg-muted')}>
-                  <Icon className={cn('h-5 w-5', stat.color)} />
+            <Card key={i} className="border-white/20 bg-card/50">
+              <CardContent className="flex items-center gap-3 pt-4 pb-4">
+                <div className={cn('p-2.5 rounded-xl', s.bg)}>
+                  <Icon className={cn('h-5 w-5', s.color)} />
                 </div>
                 <div>
-                  <div className={cn('text-2xl font-bold', stat.color)}>{stat.value}</div>
-                  <div className="text-sm text-muted-foreground">{stat.label}</div>
+                  <div className={cn('text-2xl font-bold text-white')}>{s.value}</div>
+                  <div className="text-xs text-white/70">{s.label}</div>
                 </div>
               </CardContent>
             </Card>
@@ -209,269 +423,159 @@ export default function AgentsPage() {
         })}
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-muted">
-          <TabsTrigger value="agents">Agents</TabsTrigger>
-          <TabsTrigger value="teams">Teams</TabsTrigger>
-        </TabsList>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
+          <Input placeholder="Rechercher par nom, identifiant, email..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="pl-9 bg-card border-white/20 text-white placeholder:text-white/40 focus:border-white" />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatus}>
+          <SelectTrigger className="w-[160px] bg-card border-white/20 text-white">
+            <SelectValue placeholder="Statut" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-white/20 text-white">
+            <SelectItem value="all">Tous</SelectItem>
+            <SelectItem value="active">Actifs</SelectItem>
+            <SelectItem value="inactive">Inactifs</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-        <TabsContent value="agents" className="space-y-4">
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-muted border-transparent focus:border-primary"
-              />
+      {/* Table */}
+      <Card className="border-white/20 bg-card overflow-hidden">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center h-48 gap-3 text-white/70">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span>Chargement des users...</span>
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[160px]">
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="vaccinator">Vaccinator</SelectItem>
-                <SelectItem value="recorder">Recorder</SelectItem>
-                <SelectItem value="mobilizer">Mobilizer</SelectItem>
-                <SelectItem value="supervisor">Supervisor</SelectItem>
-                <SelectItem value="team_leader">Team Leader</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="trained">Trained</SelectItem>
-                <SelectItem value="untrained">Not Trained</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Agents Table */}
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Health Area</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAgents.map((agent) => (
-                    <TableRow key={agent.id} className="cursor-pointer hover:bg-muted/30">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                              {getInitials(agent.firstName, agent.lastName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-foreground">
-                              {agent.firstName} {agent.lastName}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              ID: {agent.id.toUpperCase()}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={cn('capitalize', agentTypeColors[agent.agentType])}>
-                          {agent.agentType.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          {getHealthAreaName(agent.healthAreaId)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-sm">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-foreground">{agent.phone}</span>
-                          </div>
-                          {agent.email && (
-                            <div className="flex items-center gap-1 text-sm">
-                              <Mail className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-muted-foreground">{agent.email}</span>
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              'text-xs w-fit',
-                              agent.isActive 
-                                ? 'bg-success/10 text-success border-success/30' 
-                                : 'bg-muted text-muted-foreground'
-                            )}
-                          >
-                            {agent.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                          <Badge 
-                            variant="outline" 
-                            className={cn(
-                              'text-xs w-fit',
-                              agent.isTrained 
-                                ? 'bg-primary/10 text-primary border-primary/30' 
-                                : 'bg-warning/10 text-warning border-warning/30'
-                            )}
-                          >
-                            {agent.isTrained ? 'Trained' : 'Not Trained'}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Profile
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit Agent
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <GraduationCap className="mr-2 h-4 w-4" />
-                              Mark as Trained
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              {agent.isActive ? (
-                                <>
-                                  <UserX className="mr-2 h-4 w-4" />
-                                  Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="mr-2 h-4 w-4" />
-                                  Activate
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {filteredAgents.length === 0 && (
-                <div className="flex items-center justify-center h-48 text-muted-foreground">
-                  <div className="text-center">
-                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No agents found matching your criteria</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="teams" className="space-y-4">
-          {/* Teams Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mockTeams.map((team) => {
-              const teamLeader = mockAgents.find(a => a.id === team.teamLeaderId)
-              const healthArea = mockHealthAreas.find(ha => ha.id === team.healthAreaId)
-              const campaign = mockCampaigns.find(c => c.id === team.campaignId)
-              
-              return (
-                <Card key={team.id} className="hover:border-primary/50 transition-colors cursor-pointer">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{team.name}</CardTitle>
-                      <Badge variant="outline" className="text-xs">
-                        {team.code}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">Campaign:</span>
-                        <span className="text-foreground font-medium">{campaign?.name.split(' - ')[0]}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-foreground">{healthArea?.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-foreground">Daily Target: {team.dailyTarget}</span>
-                      </div>
-                    </div>
-                    
-                    {teamLeader && (
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-success/20 text-success text-xs">
-                            {getInitials(teamLeader.firstName, teamLeader.lastName)}
+          ) : (
+            <Table className="border-collapse">
+              <TableHeader>
+                <TableRow className="border-white/20 bg-white/5 hover:bg-white/5">
+                  <TableHead className="text-white font-semibold">User</TableHead>
+                  <TableHead className="text-white font-semibold">Contact</TableHead>
+                  <TableHead className="text-white font-semibold">Rôles</TableHead>
+                  <TableHead className="text-white font-semibold">Zone</TableHead>
+                  <TableHead className="text-white font-semibold">Statut</TableHead>
+                  <TableHead className="w-[50px] border-white/20" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map(agent => (
+                  <TableRow key={agent.id_user} className="border-white/20 hover:bg-white/5">
+                    <TableCell className="border-white/20 border-b">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold border border-primary/30">
+                            {getInitials(agent.nom, agent.prenom)}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="text-sm font-medium text-foreground">
-                            {teamLeader.firstName} {teamLeader.lastName}
-                          </div>
-                          <div className="text-xs text-muted-foreground">Team Leader</div>
+                          <p className="font-medium text-white text-sm">
+                            {agent.nom} {agent.prenom ?? ''}
+                          </p>
+                          <p className="text-xs text-white/60">@{agent.username}</p>
                         </div>
                       </div>
-                    )}
+                    </TableCell>
+                    <TableCell className="border-white/20 border-b text-white/80">
+                      <div className="space-y-0.5">
+                        {agent.email && (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Mail className="h-3 w-3" />{agent.email}
+                          </div>
+                        )}
+                        {agent.telephone && (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Phone className="h-3 w-3" />{agent.telephone}
+                          </div>
+                        )}
+                        {!agent.email && !agent.telephone && (
+                          <span className="text-xs opacity-50">—</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="border-white/20 border-b">
+                      <div className="flex flex-wrap gap-1">
+                        {agent.roles.length === 0
+                          ? <span className="text-xs text-white/50">Aucun</span>
+                          : agent.roles.map(r => (
+                            <Badge key={r.id_role} variant="outline"
+                              className={cn('text-xs px-1.5', ROLE_COLORS[r.code] ?? 'bg-white/10 text-white')}>
+                              {r.code.replace('_', ' ')}
+                            </Badge>
+                          ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="border-white/20 border-b">
+                      <div className="flex flex-wrap gap-1">
+                        {agent.scopes.length === 0
+                          ? <span className="text-xs text-white/50">—</span>
+                          : agent.scopes.map((s, i) => (
+                            <div key={i} className="flex items-center gap-1 text-xs text-white/80">
+                              <MapPin className="h-3 w-3 text-primary" />{s.niveau}
+                            </div>
+                          ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="border-white/20 border-b">
+                      <Badge variant="outline" className={cn('text-xs',
+                        agent.actif
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                          : 'bg-red-500/20 text-red-300 border-red-500/50'
+                      )}>
+                        {agent.actif ? 'Actif' : 'Inactif'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="border-white/20 border-b text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-white/10 text-white">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-card border-white/20 text-white">
+                          <DropdownMenuItem onClick={() => openEdit(agent)} className="cursor-pointer hover:bg-white/10 focus:bg-white/10 focus:text-white">
+                            <Edit className="mr-2 h-4 w-4 text-sky-400" />Modifier
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleToggle(agent)}
+                            className="cursor-pointer hover:bg-white/10 focus:bg-white/10 focus:text-white">
+                            {agent.actif
+                              ? <><UserX className="mr-2 h-4 w-4 text-amber-400" />Désactiver</>
+                              : <><UserCheck className="mr-2 h-4 w-4 text-emerald-400" />Activer</>}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-white/20" />
+                          <DropdownMenuItem onClick={() => handleDelete(agent)}
+                            className="text-red-400 focus:text-red-300 focus:bg-red-500/10 cursor-pointer">
+                            <Trash2 className="mr-2 h-4 w-4" />Supprimer
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-48 text-white/50 gap-3">
+              <Users className="h-10 w-10 opacity-30" />
+              <p className="text-sm">Aucun User trouvé</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        View Team
-                      </Button>
-                      <Button variant="outline" size="sm" className="flex-1">
-                        Add Member
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-
-            {/* Add Team Card */}
-            <Card className="border-dashed border-2 hover:border-primary/50 transition-colors cursor-pointer">
-              <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground">
-                <Plus className="h-10 w-10 mb-2" />
-                <span>Create New Team</span>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+      {/* Footer count */}
+      {!loading && (
+        <p className="text-xs text-white/60 text-right">
+          {filtered.length} user{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
+          {filtered.length !== agents.length && ` sur ${agents.length}`}
+        </p>
+      )}
     </div>
   )
 }

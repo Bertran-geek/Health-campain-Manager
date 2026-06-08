@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user, get_user_roles
@@ -167,7 +168,7 @@ def refresh_token(
             token_type="bearer",
         )
         
-    except Exception as e:
+    except (JWTError, HTTPException):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
