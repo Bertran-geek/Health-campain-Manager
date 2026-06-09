@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 import Swal from 'sweetalert2'
+import { useTranslations } from 'next-intl'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Molecule { id_molecule: number; nom: string; code: string; description?: string; nombre_dose_standard: number }
@@ -31,7 +32,7 @@ interface Department { id_dpt: number; nom_dpt: string; id_region: number }
 type FormData = { nom: string; code: string; description: string; type_campagne: string; date_debut: string; date_fin: string; sexe: string; nombre_dose: number; age_min: string; age_max: string }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const TYPE_LABELS: Record<string, string> = { VACCINATION: 'Vaccination', DEPISTAGE: 'Dépistage', SUPPLEMENTATION: 'Supplémentation', SENSIBILISATION: 'Sensibilisation', TRAITEMENT: 'Traitement' }
+const TYPE_LABEL_KEYS: Record<string, string> = { VACCINATION: 'typeVaccination', DEPISTAGE: 'typeDepistage', SUPPLEMENTATION: 'typeSupplementation', SENSIBILISATION: 'typeSensibilisation', TRAITEMENT: 'typeTraitement' }
 const TYPE_COLORS: Record<string, string> = { VACCINATION: 'bg-sky-500/15 text-sky-300 border-sky-500/30', DEPISTAGE: 'bg-violet-500/15 text-violet-300 border-violet-500/30', SUPPLEMENTATION: 'bg-amber-500/15 text-amber-300 border-amber-500/30', SENSIBILISATION: 'bg-teal-500/15 text-teal-300 border-teal-500/30', TRAITEMENT: 'bg-rose-500/15 text-rose-300 border-rose-500/30' }
 const EMPTY: FormData = { nom: '', code: '', description: '', type_campagne: 'VACCINATION', date_debut: '', date_fin: '', sexe: 'ALL', nombre_dose: 1, age_min: '', age_max: '' }
 const SWL = { background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' }
@@ -40,6 +41,7 @@ const isActive = (c: Campaign) => { const n = new Date(), s = new Date(c.date_de
 
 // ─── Zone Builder sub-component ───────────────────────────────────────────────
 function ZoneBuilder({ zones, onChange, regions, allDepts }: { zones: CampaignZone[]; onChange: (z: CampaignZone[]) => void; regions: Region[]; allDepts: Department[] }) {
+  const t = useTranslations('Campaigns')
   const [level, setLevel] = useState('REGION')
   const [regionFilter, setRegionFilter] = useState('')
   const [entityId, setEntityId] = useState('')
@@ -57,16 +59,16 @@ function ZoneBuilder({ zones, onChange, regions, allDepts }: { zones: CampaignZo
       <div className="flex gap-2 flex-wrap">
         <Select value={level} onValueChange={v => { setLevel(v); setEntityId(''); setRegionFilter('') }}>
           <SelectTrigger className="bg-muted border-white/20 text-white w-36"><SelectValue /></SelectTrigger>
-          <SelectContent className="bg-card border-white/20"><SelectItem value="REGION">Région</SelectItem><SelectItem value="DEPARTEMENT">Département</SelectItem></SelectContent>
+          <SelectContent className="bg-card border-white/20"><SelectItem value="REGION">{t('zoneRegion')}</SelectItem><SelectItem value="DEPARTEMENT">{t('zoneDepartement')}</SelectItem></SelectContent>
         </Select>
         {level === 'DEPARTEMENT' && (
           <Select value={regionFilter} onValueChange={setRegionFilter}>
-            <SelectTrigger className="bg-muted border-white/20 text-white w-40"><SelectValue placeholder="Filtrer région" /></SelectTrigger>
-            <SelectContent className="bg-card border-white/20"><SelectItem value="">Toutes</SelectItem>{regions.map(r => <SelectItem key={r.id_region} value={String(r.id_region)}>{r.nom_region}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="bg-muted border-white/20 text-white w-40"><SelectValue placeholder={t('filterRegion')} /></SelectTrigger>
+            <SelectContent className="bg-card border-white/20"><SelectItem value="">{t('allRegions')}</SelectItem>{regions.map(r => <SelectItem key={r.id_region} value={String(r.id_region)}>{r.nom_region}</SelectItem>)}</SelectContent>
           </Select>
         )}
         <Select value={entityId} onValueChange={setEntityId}>
-          <SelectTrigger className="bg-muted border-white/20 text-white flex-1 min-w-[160px]"><SelectValue placeholder={level === 'REGION' ? 'Choisir région…' : 'Choisir département…'} /></SelectTrigger>
+          <SelectTrigger className="bg-muted border-white/20 text-white flex-1 min-w-[160px]"><SelectValue placeholder={level === 'REGION' ? t('pickRegion') : t('pickDept')} /></SelectTrigger>
           <SelectContent className="bg-card border-white/20">{level === 'REGION' ? regions.map(r => <SelectItem key={r.id_region} value={String(r.id_region)}>{r.nom_region}</SelectItem>) : depts.map(d => <SelectItem key={d.id_dpt} value={String(d.id_dpt)}>{d.nom_dpt}</SelectItem>)}</SelectContent>
         </Select>
         <Button type="button" onClick={add} disabled={!entityId} className="bg-primary hover:bg-primary/80 text-white px-3"><Plus className="h-4 w-4" /></Button>
@@ -87,25 +89,26 @@ function ZoneBuilder({ zones, onChange, regions, allDepts }: { zones: CampaignZo
 
 // ─── Molecule Selector sub-component ─────────────────────────────────────────
 function MoleculeSelector({ selected, onChange, molecules, onRefresh }: { selected: number[]; onChange: (ids: number[]) => void; molecules: Molecule[]; onRefresh: () => Promise<void> }) {
+  const t = useTranslations('Campaigns')
   const [showCreate, setShowCreate] = useState(false)
   const [f, setF] = useState({ code: '', nom: '', description: '', nombre_dose_standard: 1 })
   const [creating, setCreating] = useState(false)
   const toggle = (id: number) => onChange(selected.includes(id) ? selected.filter(i => i !== id) : [...selected, id])
   const create = async () => {
-    if (!f.code || !f.nom) { Swal.fire({ icon: 'warning', title: 'Champs requis', text: 'Code et nom requis.', ...SWL }); return }
+    if (!f.code || !f.nom) { Swal.fire({ icon: 'warning', title: t('error'), text: t('moleculeRequired'), ...SWL }); return }
     setCreating(true)
     try {
       const res = await api.post('/molecules', { ...f, nombre_dose_standard: Number(f.nombre_dose_standard) })
-      Swal.fire({ icon: 'success', title: 'Molécule créée !', timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
+      Swal.fire({ icon: 'success', title: t('moleculeCreated'), timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       await onRefresh(); onChange([...selected, res.data.id_molecule])
       setF({ code: '', nom: '', description: '', nombre_dose_standard: 1 }); setShowCreate(false)
-    } catch (err: any) { Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Erreur création.', ...SWL })
+    } catch (err: any) { Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('moleculeError'), ...SWL })
     } finally { setCreating(false) }
   }
   return (
     <div className="space-y-2">
       <div className="max-h-40 overflow-y-auto space-y-1 p-2 bg-muted/30 rounded border border-white/10">
-        {molecules.length === 0 && <p className="text-white/40 text-xs text-center py-2">Aucune molécule disponible</p>}
+        {molecules.length === 0 && <p className="text-white/40 text-xs text-center py-2">{t('noMoleculeAvailable')}</p>}
         {molecules.map(m => (
           <div key={m.id_molecule} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 rounded px-1 py-0.5" onClick={() => toggle(m.id_molecule)}>
             <Checkbox checked={selected.includes(m.id_molecule)} onCheckedChange={() => toggle(m.id_molecule)} className="border-white/30" />
@@ -116,19 +119,19 @@ function MoleculeSelector({ selected, onChange, molecules, onRefresh }: { select
       </div>
       {!showCreate ? (
         <Button type="button" variant="outline" size="sm" className="border-dashed border-white/30 text-white/70 hover:text-white hover:bg-white/10 w-full" onClick={() => setShowCreate(true)}>
-          <Plus className="h-3 w-3 mr-1" /> Créer une molécule
+          <Plus className="h-3 w-3 mr-1" /> {t('createMolecule')}
         </Button>
       ) : (
         <div className="p-3 bg-muted/30 rounded border border-white/20 space-y-2">
-          <p className="text-white text-xs font-semibold">Nouvelle molécule</p>
+          <p className="text-white text-xs font-semibold">{t('newMoleculeLabel')}</p>
           <div className="grid grid-cols-2 gap-2">
             <Input placeholder="Code" value={f.code} onChange={e => setF(x => ({ ...x, code: e.target.value }))} className="bg-muted border-white/20 text-white placeholder:text-white/30 text-sm h-8" />
             <Input placeholder="Nom" value={f.nom} onChange={e => setF(x => ({ ...x, nom: e.target.value }))} className="bg-muted border-white/20 text-white placeholder:text-white/30 text-sm h-8" />
           </div>
-          <Input placeholder="Description (optionnel)" value={f.description} onChange={e => setF(x => ({ ...x, description: e.target.value }))} className="bg-muted border-white/20 text-white placeholder:text-white/30 text-sm h-8" />
+          <Input placeholder={t('descOptional')} value={f.description} onChange={e => setF(x => ({ ...x, description: e.target.value }))} className="bg-muted border-white/20 text-white placeholder:text-white/30 text-sm h-8" />
           <div className="flex gap-2 justify-end">
-            <Button type="button" variant="ghost" size="sm" className="text-white/60 h-7" onClick={() => setShowCreate(false)}>Annuler</Button>
-            <Button type="button" size="sm" onClick={create} disabled={creating} className="bg-primary hover:bg-primary/80 text-white h-7">{creating ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Ajouter'}</Button>
+            <Button type="button" variant="ghost" size="sm" className="text-white/60 h-7" onClick={() => setShowCreate(false)}>{t('cancel')}</Button>
+            <Button type="button" size="sm" onClick={create} disabled={creating} className="bg-primary hover:bg-primary/80 text-white h-7">{creating ? <Loader2 className="h-3 w-3 animate-spin" /> : t('addBtn')}</Button>
           </div>
         </div>
       )}
@@ -138,35 +141,36 @@ function MoleculeSelector({ selected, onChange, molecules, onRefresh }: { select
 
 // ─── Campaign Form Fields sub-component ──────────────────────────────────────
 function CampaignFields({ form, set }: { form: FormData; set: (p: Partial<FormData>) => void }) {
+  const t = useTranslations('Campaigns')
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1"><Label className="text-white">Nom <span className="text-red-400">*</span></Label><Input value={form.nom} onChange={e => set({ nom: e.target.value })} placeholder="Campagne Polio" className="bg-muted border-white/20 text-white placeholder:text-white/30" /></div>
-        <div className="space-y-1"><Label className="text-white">Code <span className="text-red-400">*</span></Label><Input value={form.code} onChange={e => set({ code: e.target.value })} placeholder="POLIO-2025" className="bg-muted border-white/20 text-white placeholder:text-white/30" /></div>
+        <div className="space-y-1"><Label className="text-white">{t('nameLabel')} <span className="text-red-400">*</span></Label><Input value={form.nom} onChange={e => set({ nom: e.target.value })} placeholder="Campagne Polio" className="bg-muted border-white/20 text-white placeholder:text-white/30" /></div>
+        <div className="space-y-1"><Label className="text-white">{t('codeLabel')} <span className="text-red-400">*</span></Label><Input value={form.code} onChange={e => set({ code: e.target.value })} placeholder="POLIO-2025" className="bg-muted border-white/20 text-white placeholder:text-white/30" /></div>
       </div>
-      <div className="space-y-1"><Label className="text-white">Description</Label><Textarea value={form.description} onChange={e => set({ description: e.target.value })} rows={2} className="bg-muted border-white/20 text-white resize-none placeholder:text-white/30" /></div>
+      <div className="space-y-1"><Label className="text-white">{t('descriptionLabel')}</Label><Textarea value={form.description} onChange={e => set({ description: e.target.value })} rows={2} className="bg-muted border-white/20 text-white resize-none placeholder:text-white/30" /></div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1"><Label className="text-white">Type <span className="text-red-400">*</span></Label>
+        <div className="space-y-1"><Label className="text-white">{t('typeLabel')} <span className="text-red-400">*</span></Label>
           <Select value={form.type_campagne} onValueChange={v => set({ type_campagne: v })}>
             <SelectTrigger className="bg-muted border-white/20 text-white"><SelectValue /></SelectTrigger>
-            <SelectContent className="bg-card border-white/20">{Object.entries(TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+            <SelectContent className="bg-card border-white/20">{Object.keys(TYPE_LABEL_KEYS).map(k => <SelectItem key={k} value={k}>{t(TYPE_LABEL_KEYS[k] as any)}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="space-y-1"><Label className="text-white">Sexe cible</Label>
+        <div className="space-y-1"><Label className="text-white">{t('genderLabel')}</Label>
           <Select value={form.sexe} onValueChange={v => set({ sexe: v })}>
             <SelectTrigger className="bg-muted border-white/20 text-white"><SelectValue /></SelectTrigger>
-            <SelectContent className="bg-card border-white/20"><SelectItem value="ALL">Tous</SelectItem><SelectItem value="M">Masculin</SelectItem><SelectItem value="F">Féminin</SelectItem></SelectContent>
+            <SelectContent className="bg-card border-white/20"><SelectItem value="ALL">{t('genderAll')}</SelectItem><SelectItem value="M">{t('genderM')}</SelectItem><SelectItem value="F">{t('genderF')}</SelectItem></SelectContent>
           </Select>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1"><Label className="text-white">Date début <span className="text-red-400">*</span></Label><Input type="date" value={form.date_debut} onChange={e => set({ date_debut: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
-        <div className="space-y-1"><Label className="text-white">Date fin <span className="text-red-400">*</span></Label><Input type="date" value={form.date_fin} onChange={e => set({ date_fin: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
+        <div className="space-y-1"><Label className="text-white">{t('startDate')} <span className="text-red-400">*</span></Label><Input type="date" value={form.date_debut} onChange={e => set({ date_debut: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
+        <div className="space-y-1"><Label className="text-white">{t('endDate')} <span className="text-red-400">*</span></Label><Input type="date" value={form.date_fin} onChange={e => set({ date_fin: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
       </div>
       <div className="grid grid-cols-3 gap-3">
-        <div className="space-y-1"><Label className="text-white">Doses</Label><Input type="number" min={1} value={form.nombre_dose} onChange={e => set({ nombre_dose: parseInt(e.target.value) || 1 })} className="bg-muted border-white/20 text-white" /></div>
-        <div className="space-y-1"><Label className="text-white">Âge min</Label><Input type="number" min={0} value={form.age_min} onChange={e => set({ age_min: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
-        <div className="space-y-1"><Label className="text-white">Âge max</Label><Input type="number" min={0} value={form.age_max} onChange={e => set({ age_max: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
+        <div className="space-y-1"><Label className="text-white">{t('dosesLabel')}</Label><Input type="number" min={1} value={form.nombre_dose} onChange={e => set({ nombre_dose: parseInt(e.target.value) || 1 })} className="bg-muted border-white/20 text-white" /></div>
+        <div className="space-y-1"><Label className="text-white">{t('ageMin')}</Label><Input type="number" min={0} value={form.age_min} onChange={e => set({ age_min: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
+        <div className="space-y-1"><Label className="text-white">{t('ageMax')}</Label><Input type="number" min={0} value={form.age_max} onChange={e => set({ age_max: e.target.value })} className="bg-muted border-white/20 text-white" /></div>
       </div>
     </>
   )
@@ -174,6 +178,7 @@ function CampaignFields({ form, set }: { form: FormData; set: (p: Partial<FormDa
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
+  const t = useTranslations('Campaigns')
   // Lists
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [molecules, setMolecules] = useState<Molecule[]>([])
@@ -201,7 +206,7 @@ export default function CampaignsPage() {
   const fetchCampaigns = useCallback(async () => {
     setLoading(true)
     try { const r = await api.get('/campaigns?page=1&page_size=100'); setCampaigns(r.data.items ?? []) }
-    catch { Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les campagnes.', ...SWL }) }
+    catch { Swal.fire({ icon: 'error', title: t('error'), text: t('noCampaigns'), ...SWL }) }
     finally { setLoading(false) }
   }, [])
   const fetchMolecules = useCallback(async () => {
@@ -229,13 +234,13 @@ export default function CampaignsPage() {
   }
 
   const handleCreate = async () => {
-    if (!form.nom || !form.code || !form.date_debut || !form.date_fin) { Swal.fire({ icon: 'warning', title: 'Champs requis', text: 'Nom, code et dates sont obligatoires.', ...SWL }); return }
+    if (!form.nom || !form.code || !form.date_debut || !form.date_fin) { Swal.fire({ icon: 'warning', title: t('error'), text: t('requiredFields'), ...SWL }); return }
     setSub(true)
     try {
       await api.post('/campaigns', { ...form, nombre_dose: Number(form.nombre_dose), age_min: form.age_min !== '' ? Number(form.age_min) : undefined, age_max: form.age_max !== '' ? Number(form.age_max) : undefined, actif: true, molecule_ids: selMols, zones: selZones })
-      Swal.fire({ icon: 'success', title: 'Campagne créée !', timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
+      Swal.fire({ icon: 'success', title: t('campaignCreated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setForm({ ...EMPTY }); setSelMols([]); setSelZones([]); setCreateOpen(false); fetchCampaigns()
-    } catch (err: any) { Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Échec de la création.', ...SWL })
+    } catch (err: any) { Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('createError'), ...SWL })
     } finally { setSub(false) }
   }
 
@@ -244,27 +249,27 @@ export default function CampaignsPage() {
     setEditSub(true)
     try {
       await api.put(`/campaigns/${editC.id_campaign}`, { ...editForm, nombre_dose: Number(editForm.nombre_dose), age_min: editForm.age_min !== '' ? Number(editForm.age_min) : undefined, age_max: editForm.age_max !== '' ? Number(editForm.age_max) : undefined, molecule_ids: editMols, zones: editZones })
-      Swal.fire({ icon: 'success', title: 'Mise à jour réussie !', timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
+      Swal.fire({ icon: 'success', title: t('campaignUpdated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setEditC(null); fetchCampaigns()
-    } catch (err: any) { Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Échec de la mise à jour.', ...SWL })
+    } catch (err: any) { Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('updateError'), ...SWL })
     } finally { setEditSub(false) }
   }
 
   const handleDelete = async (c: Campaign) => {
-    const r = await Swal.fire({ title: `Supprimer « ${c.nom} » ?`, text: 'Cette action est irréversible.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#EF4444', cancelButtonColor: '#334155', confirmButtonText: 'Supprimer', cancelButtonText: 'Annuler', ...SWL })
+    const r = await Swal.fire({ title: t('deleteConfirmTitle', {name: c.nom}), text: t('deleteConfirmText'), icon: 'warning', showCancelButton: true, confirmButtonColor: '#EF4444', cancelButtonColor: '#334155', confirmButtonText: t('deleteBtn'), cancelButtonText: t('cancelBtn'), ...SWL })
     if (!r.isConfirmed) return
     try {
       await api.delete(`/campaigns/${c.id_campaign}`)
-      Swal.fire({ icon: 'success', title: 'Supprimée !', timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
+      Swal.fire({ icon: 'success', title: t('campaignDeleted'), timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       fetchCampaigns()
-    } catch (err: any) { Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Suppression impossible.', ...SWL }) }
+    } catch (err: any) { Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('deleteError'), ...SWL }) }
   }
 
   const stats = [
-    { label: 'Total', value: campaigns.length, icon: Activity, color: 'text-sky-400', bg: 'bg-sky-500/10' },
-    { label: 'En cours', value: campaigns.filter(isActive).length, icon: Clock, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: 'Actives', value: campaigns.filter(c => c.actif).length, icon: CheckCircle2, color: 'text-violet-400', bg: 'bg-violet-500/10' },
-    { label: 'Vaccinations', value: campaigns.filter(c => c.type_campagne === 'VACCINATION').length, icon: Syringe, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { label: t('total'), value: campaigns.length, icon: Activity, color: 'text-sky-400', bg: 'bg-sky-500/10' },
+    { label: t('inProgress'), value: campaigns.filter(isActive).length, icon: Clock, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: t('active'), value: campaigns.filter(c => c.actif).length, icon: CheckCircle2, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+    { label: t('vaccinations'), value: campaigns.filter(c => c.type_campagne === 'VACCINATION').length, icon: Syringe, color: 'text-amber-400', bg: 'bg-amber-500/10' },
   ]
 
   return (
@@ -272,12 +277,12 @@ export default function CampaignsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Gestion des Campagnes</h2>
-          <p className="text-white/60 text-sm mt-1">Créez et suivez les campagnes de santé</p>
+          <h2 className="text-2xl font-bold text-white">{t('title')}</h2>
+          <p className="text-white/60 text-sm mt-1">{t('subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchCampaigns} className="border-white/20 text-white hover:bg-white/10"><RefreshCw className="h-4 w-4" /></Button>
-          <Button onClick={() => setCreateOpen(true)} className="bg-primary hover:bg-primary/90 text-white gap-2"><Plus className="h-4 w-4" /> Nouvelle Campagne</Button>
+          <Button onClick={() => setCreateOpen(true)} className="bg-primary hover:bg-primary/90 text-white gap-2"><Plus className="h-4 w-4" /> {t('newCampaign')}</Button>
         </div>
       </div>
 
@@ -297,11 +302,11 @@ export default function CampaignsPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-          <Input placeholder="Rechercher par nom, code..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-muted border-white/20 text-white placeholder:text-white/30" />
+          <Input placeholder={t('searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)} className="pl-9 bg-muted border-white/20 text-white placeholder:text-white/30" />
         </div>
         <Select value={typeFilter} onValueChange={setType}>
           <SelectTrigger className="w-[180px] bg-muted border-white/20 text-white"><SelectValue placeholder="Type" /></SelectTrigger>
-          <SelectContent className="bg-card border-white/20"><SelectItem value="all">Tous les types</SelectItem>{Object.entries(TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+          <SelectContent className="bg-card border-white/20"><SelectItem value="all">{t('allTypes')}</SelectItem>{Object.keys(TYPE_LABEL_KEYS).map(k => <SelectItem key={k} value={k}>{t(TYPE_LABEL_KEYS[k] as any)}</SelectItem>)}</SelectContent>
         </Select>
       </div>
 
@@ -309,34 +314,34 @@ export default function CampaignsPage() {
       <Card className="border-white/20 overflow-hidden">
         <CardContent className="p-0">
           {loading ? (
-            <div className="flex items-center justify-center h-48 gap-3 text-white/50"><Loader2 className="h-6 w-6 animate-spin text-primary" /><span>Chargement des campagnes...</span></div>
+            <div className="flex items-center justify-center h-48 gap-3 text-white/50"><Loader2 className="h-6 w-6 animate-spin text-primary" /><span>{t('loading')}</span></div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="border-white/20 bg-white/5 hover:bg-white/5">
-                  <TableHead className="text-white font-medium">Campagne</TableHead>
-                  <TableHead className="text-white font-medium">Type</TableHead>
-                  <TableHead className="text-white font-medium">Période</TableHead>
-                  <TableHead className="text-white font-medium">Sexe</TableHead>
-                  <TableHead className="text-white font-medium">Doses</TableHead>
-                  <TableHead className="text-white font-medium">Statut</TableHead>
-                  <TableHead className="text-white font-medium text-center w-[120px]">Actions</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnCampaign')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnType')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnPeriod')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnGender')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnDoses')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnStatus')}</TableHead>
+                  <TableHead className="text-white font-medium text-center w-[120px]">{t('columnActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map(c => (
                   <TableRow key={c.id_campaign} className="border-white/20 hover:bg-white/5">
                     <TableCell><div><p className="font-medium text-white text-sm">{c.nom}</p><p className="text-xs text-white/50 font-mono">{c.code}</p>{c.description && <p className="text-xs text-white/40 mt-0.5 line-clamp-1">{c.description}</p>}</div></TableCell>
-                    <TableCell><Badge variant="outline" className={cn('text-xs', TYPE_COLORS[c.type_campagne])}>{TYPE_LABELS[c.type_campagne] ?? c.type_campagne}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className={cn('text-xs', TYPE_COLORS[c.type_campagne])}>{TYPE_LABEL_KEYS[c.type_campagne] ? t(TYPE_LABEL_KEYS[c.type_campagne] as any) : c.type_campagne}</Badge></TableCell>
                     <TableCell>
                       <div className="text-xs space-y-0.5 text-white">
                         <div className="flex items-center gap-1"><Calendar className="h-3 w-3 text-white/40" />{fmtDate(c.date_debut)}</div>
                         <div className="text-white/40 pl-4">→ {fmtDate(c.date_fin)}</div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-white text-xs">{c.sexe === 'ALL' ? 'Tous' : c.sexe === 'M' ? 'Masculin' : 'Féminin'}</TableCell>
+                    <TableCell className="text-white text-xs">{c.sexe === 'ALL' ? t('genderAll') : c.sexe === 'M' ? t('genderM') : t('genderF')}</TableCell>
                     <TableCell className="text-white text-sm font-medium">{c.nombre_dose}</TableCell>
-                    <TableCell><Badge variant="outline" className={cn('text-xs', isActive(c) ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : c.actif ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30')}>{isActive(c) ? 'En cours' : c.actif ? 'Active' : 'Inactive'}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className={cn('text-xs', isActive(c) ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : c.actif ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30')}>{isActive(c) ? t('statusInProgress') : c.actif ? t('statusActive') : t('statusInactive')}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-sky-400 hover:bg-sky-500/10 hover:text-sky-300" title="Voir détails" onClick={() => setViewC(c)}><Eye className="h-4 w-4" /></Button>
@@ -350,7 +355,7 @@ export default function CampaignsPage() {
             </Table>
           )}
           {!loading && filtered.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-48 text-white/30 gap-3"><Calendar className="h-10 w-10 opacity-30" /><p className="text-sm">Aucune campagne trouvée</p></div>
+            <div className="flex flex-col items-center justify-center h-48 text-white/30 gap-3"><Calendar className="h-10 w-10 opacity-30" /><p className="text-sm">{t('noCampaigns')}</p></div>
           )}
         </CardContent>
       </Card>
@@ -359,14 +364,14 @@ export default function CampaignsPage() {
       {/* ── Create Dialog ── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-[640px] bg-card border-white/20 text-white">
-          <DialogHeader><DialogTitle className="text-white">Nouvelle Campagne</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">{t('createTitle')}</DialogTitle></DialogHeader>
           <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
             <CampaignFields form={form} set={p => setForm(f => ({ ...f, ...p }))} />
-            <div className="space-y-1"><Label className="text-white">Zones géographiques</Label><ZoneBuilder zones={selZones} onChange={setSelZones} regions={regions} allDepts={allDepts} /></div>
-            <div className="space-y-1"><Label className="text-white">Molécules / Vaccins</Label><MoleculeSelector selected={selMols} onChange={setSelMols} molecules={molecules} onRefresh={fetchMolecules} /></div>
+            <div className="space-y-1"><Label className="text-white">{t('zonesLabel')}</Label><ZoneBuilder zones={selZones} onChange={setSelZones} regions={regions} allDepts={allDepts} /></div>
+            <div className="space-y-1"><Label className="text-white">{t('moleculesLabel')}</Label><MoleculeSelector selected={selMols} onChange={setSelMols} molecules={molecules} onRefresh={fetchMolecules} /></div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setCreateOpen(false)}>Annuler</Button>
-              <Button onClick={handleCreate} disabled={submitting} className="bg-primary hover:bg-primary/90 text-white">{submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer la campagne'}</Button>
+              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setCreateOpen(false)}>{t('cancel')}</Button>
+              <Button onClick={handleCreate} disabled={submitting} className="bg-primary hover:bg-primary/90 text-white">{submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('creating')}</> : t('createBtn')}</Button>
             </div>
           </div>
         </DialogContent>
@@ -375,31 +380,31 @@ export default function CampaignsPage() {
       {/* ── View Dialog ── */}
       <Dialog open={!!viewC} onOpenChange={() => setViewC(null)}>
         <DialogContent className="sm:max-w-[560px] bg-card border-white/20 text-white">
-          <DialogHeader><DialogTitle className="text-white">Détails de la campagne</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">{t('detailsTitle')}</DialogTitle></DialogHeader>
           {viewC && (
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><p className="text-white/50 text-xs mb-0.5">Nom</p><p className="text-white font-medium">{viewC.nom}</p></div>
-                <div><p className="text-white/50 text-xs mb-0.5">Code</p><p className="text-white font-mono">{viewC.code}</p></div>
-                <div><p className="text-white/50 text-xs mb-0.5">Type</p><Badge variant="outline" className={cn('text-xs', TYPE_COLORS[viewC.type_campagne])}>{TYPE_LABELS[viewC.type_campagne]}</Badge></div>
-                <div><p className="text-white/50 text-xs mb-0.5">Statut</p><Badge variant="outline" className={cn('text-xs', isActive(viewC) ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : viewC.actif ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30')}>{isActive(viewC) ? 'En cours' : viewC.actif ? 'Active' : 'Inactive'}</Badge></div>
-                <div><p className="text-white/50 text-xs mb-0.5">Date début</p><p className="text-white">{fmtDate(viewC.date_debut)}</p></div>
-                <div><p className="text-white/50 text-xs mb-0.5">Date fin</p><p className="text-white">{fmtDate(viewC.date_fin)}</p></div>
-                <div><p className="text-white/50 text-xs mb-0.5">Sexe cible</p><p className="text-white">{viewC.sexe === 'ALL' ? 'Tous' : viewC.sexe === 'M' ? 'Masculin' : 'Féminin'}</p></div>
-                <div><p className="text-white/50 text-xs mb-0.5">Nombre de doses</p><p className="text-white">{viewC.nombre_dose}</p></div>
-                {viewC.age_min != null && <div><p className="text-white/50 text-xs mb-0.5">Âge min</p><p className="text-white">{viewC.age_min} ans</p></div>}
-                {viewC.age_max != null && <div><p className="text-white/50 text-xs mb-0.5">Âge max</p><p className="text-white">{viewC.age_max} ans</p></div>}
+                <div><p className="text-white/50 text-xs mb-0.5">{t('nameLabel')}</p><p className="text-white font-medium">{viewC.nom}</p></div>
+                <div><p className="text-white/50 text-xs mb-0.5">{t('codeLabel')}</p><p className="text-white font-mono">{viewC.code}</p></div>
+                <div><p className="text-white/50 text-xs mb-0.5">{t('typeLabel')}</p><Badge variant="outline" className={cn('text-xs', TYPE_COLORS[viewC.type_campagne])}>{TYPE_LABEL_KEYS[viewC.type_campagne] ? t(TYPE_LABEL_KEYS[viewC.type_campagne] as any) : viewC.type_campagne}</Badge></div>
+                <div><p className="text-white/50 text-xs mb-0.5">Statut</p><Badge variant="outline" className={cn('text-xs', isActive(viewC) ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : viewC.actif ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30')}>{isActive(viewC) ? t('statusInProgress') : viewC.actif ? t('statusActive') : t('statusInactive')}</Badge></div>
+                <div><p className="text-white/50 text-xs mb-0.5">{t('startDate')}</p><p className="text-white">{fmtDate(viewC.date_debut)}</p></div>
+                <div><p className="text-white/50 text-xs mb-0.5">{t('endDate')}</p><p className="text-white">{fmtDate(viewC.date_fin)}</p></div>
+                <div><p className="text-white/50 text-xs mb-0.5">{t('genderLabel')}</p><p className="text-white">{viewC.sexe === 'ALL' ? t('genderAll') : viewC.sexe === 'M' ? t('genderM') : t('genderF')}</p></div>
+                <div><p className="text-white/50 text-xs mb-0.5">{t('dosesLabel')}</p><p className="text-white">{viewC.nombre_dose}</p></div>
+                {viewC.age_min != null && <div><p className="text-white/50 text-xs mb-0.5">{t('ageMin')}</p><p className="text-white">{viewC.age_min} ans</p></div>}
+                {viewC.age_max != null && <div><p className="text-white/50 text-xs mb-0.5">{t('ageMax')}</p><p className="text-white">{viewC.age_max} ans</p></div>}
               </div>
-              {viewC.description && <div><p className="text-white/50 text-xs mb-1">Description</p><p className="text-white text-sm">{viewC.description}</p></div>}
+              {viewC.description && <div><p className="text-white/50 text-xs mb-1">{t('descriptionLabel')}</p><p className="text-white text-sm">{viewC.description}</p></div>}
               <div>
-                <p className="text-white/50 text-xs mb-1">Molécules ({viewC.molecules.length})</p>
-                {viewC.molecules.length === 0 ? <p className="text-white/30 text-xs">Aucune molécule</p> : <div className="flex flex-wrap gap-1.5">{viewC.molecules.map(m => <span key={m.id_molecule} className="px-2 py-0.5 bg-sky-500/15 text-sky-300 text-xs rounded border border-sky-500/30">{m.nom} <span className="text-white/40 font-mono">({m.code})</span></span>)}</div>}
+                <p className="text-white/50 text-xs mb-1">{t('moleculesCount')} ({viewC.molecules.length})</p>
+                {viewC.molecules.length === 0 ? <p className="text-white/30 text-xs">{t('noMolecule')}</p> : <div className="flex flex-wrap gap-1.5">{viewC.molecules.map(m => <span key={m.id_molecule} className="px-2 py-0.5 bg-sky-500/15 text-sky-300 text-xs rounded border border-sky-500/30">{m.nom} <span className="text-white/40 font-mono">({m.code})</span></span>)}</div>}
               </div>
               <div>
-                <p className="text-white/50 text-xs mb-1">Zones ({viewC.zones.length})</p>
-                {viewC.zones.length === 0 ? <p className="text-white/30 text-xs">Aucune zone</p> : <div className="flex flex-wrap gap-1.5">{viewC.zones.map((z, i) => <span key={i} className="px-2 py-0.5 bg-primary/20 text-white text-xs rounded border border-white/20">{z.niveau}{z.id_region ? ` #${z.id_region}` : ''}</span>)}</div>}
+                <p className="text-white/50 text-xs mb-1">{t('zonesCount')} ({viewC.zones.length})</p>
+                {viewC.zones.length === 0 ? <p className="text-white/30 text-xs">{t('noZone')}</p> : <div className="flex flex-wrap gap-1.5">{viewC.zones.map((z, i) => <span key={i} className="px-2 py-0.5 bg-primary/20 text-white text-xs rounded border border-white/20">{z.niveau}{z.id_region ? ` #${z.id_region}` : ''}</span>)}</div>}
               </div>
-              <p className="text-xs text-white/30">Créée le {fmtDate(viewC.created_at)}</p>
+              <p className="text-xs text-white/30">{t('createdOn')} {fmtDate(viewC.created_at)}</p>
             </div>
           )}
         </DialogContent>
@@ -408,14 +413,14 @@ export default function CampaignsPage() {
       {/* ── Edit Dialog ── */}
       <Dialog open={!!editC} onOpenChange={() => setEditC(null)}>
         <DialogContent className="sm:max-w-[640px] bg-card border-white/20 text-white">
-          <DialogHeader><DialogTitle className="text-white">Modifier la campagne</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">{t('editTitle')}</DialogTitle></DialogHeader>
           <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
             <CampaignFields form={editForm} set={p => setEditForm(f => ({ ...f, ...p }))} />
-            <div className="space-y-1"><Label className="text-white">Zones géographiques</Label><ZoneBuilder zones={editZones} onChange={setEditZones} regions={regions} allDepts={allDepts} /></div>
-            <div className="space-y-1"><Label className="text-white">Molécules / Vaccins</Label><MoleculeSelector selected={editMols} onChange={setEditMols} molecules={molecules} onRefresh={fetchMolecules} /></div>
+            <div className="space-y-1"><Label className="text-white">{t('zonesLabel')}</Label><ZoneBuilder zones={editZones} onChange={setEditZones} regions={regions} allDepts={allDepts} /></div>
+            <div className="space-y-1"><Label className="text-white">{t('moleculesLabel')}</Label><MoleculeSelector selected={editMols} onChange={setEditMols} molecules={molecules} onRefresh={fetchMolecules} /></div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setEditC(null)}>Annuler</Button>
-              <Button onClick={handleUpdate} disabled={editSub} className="bg-primary hover:bg-primary/90 text-white">{editSub ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mise à jour...</> : 'Enregistrer'}</Button>
+              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setEditC(null)}>{t('cancel')}</Button>
+              <Button onClick={handleUpdate} disabled={editSub} className="bg-primary hover:bg-primary/90 text-white">{editSub ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('saving')}</> : t('saveBtn')}</Button>
             </div>
           </div>
         </DialogContent>

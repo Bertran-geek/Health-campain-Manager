@@ -27,6 +27,7 @@ import {
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 import Swal from 'sweetalert2'
+import { useTranslations } from 'next-intl'
 
 interface Role { id_role: number; code: string; nom: string }
 interface Scope { niveau: string; id_region?: number | null }
@@ -57,6 +58,7 @@ export default function UsersPage() {
   const [roles, setRoles]         = useState<Role[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
+  const t = useTranslations('Agents')
   const [statusFilter, setStatus] = useState('all')
   
   const [dialogOpen, setDialog]   = useState(false)
@@ -73,7 +75,7 @@ export default function UsersPage() {
       const res = await api.get('/users')
       setAgents(res.data.items ?? [])
     } catch {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les users.',
+      Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'),
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
     } finally { setLoading(false) }
   }, [])
@@ -98,8 +100,8 @@ export default function UsersPage() {
 
   const handleCreate = async () => {
     if (!form.nom || !form.username || !form.password || !form.role_id) {
-      Swal.fire({ icon: 'warning', title: 'Champs requis',
-        text: 'Nom, identifiant, rôle et mot de passe sont obligatoires.',
+      Swal.fire({ icon: 'warning', title: t('error'),
+        text: t('requiredFields'),
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
       return
     }
@@ -116,14 +118,14 @@ export default function UsersPage() {
         role_ids:  [parseInt(form.role_id)],
         scopes:    [{ niveau: form.niveau, actif: true }],
       })
-      Swal.fire({ icon: 'success', title: 'User créé !', timer: 1500,
+      Swal.fire({ icon: 'success', title: t('userCreated'), timer: 1500,
         showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
       setForm({ ...EMPTY_FORM })
       setDialog(false)
       fetchAgents()
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Erreur',
-        text: err.response?.data?.detail || 'Échec de la création.',
+      Swal.fire({ icon: 'error', title: t('error'),
+        text: err.response?.data?.detail || t('createError'),
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
     } finally { setSub(false) }
   }
@@ -145,8 +147,8 @@ export default function UsersPage() {
 
   const handleUpdate = async () => {
     if (!editingUser || !editForm.nom || !editForm.role_id) {
-      Swal.fire({ icon: 'warning', title: 'Champs requis',
-        text: 'Le nom et le rôle sont obligatoires.',
+      Swal.fire({ icon: 'warning', title: t('error'),
+        text: t('requiredFieldsUpdate'),
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
       return
     }
@@ -163,13 +165,13 @@ export default function UsersPage() {
       if (editForm.password) payload.password = editForm.password
 
       await api.put(`/users/${editingUser.id_user}`, payload)
-      Swal.fire({ icon: 'success', title: 'User mis à jour !', timer: 1500,
+      Swal.fire({ icon: 'success', title: t('userUpdated'), timer: 1500,
         showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
       setEditDialog(false)
       fetchAgents()
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Erreur',
-        text: err.response?.data?.detail || 'Mise à jour impossible.',
+      Swal.fire({ icon: 'error', title: t('error'),
+        text: err.response?.data?.detail || t('updateError'),
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
     } finally { setSub(false) }
   }
@@ -179,29 +181,29 @@ export default function UsersPage() {
       await api.put(`/users/${agent.id_user}`, { actif: !agent.actif })
       fetchAgents()
     } catch {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Modification impossible.',
+      Swal.fire({ icon: 'error', title: t('error'), text: t('modifyError'),
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
     }
   }
 
   const handleDelete = async (agent: Agent) => {
     const res = await Swal.fire({
-      title: `Supprimer ${agent.nom} ${agent.prenom ?? ''} ?`,
-      text: 'Cette action est irréversible.',
+      title: t('deleteConfirmTitle', {name: `${agent.nom} ${agent.prenom ?? ''}`.trim()}),
+      text: t('deleteConfirmText'),
       icon: 'warning', showCancelButton: true,
       confirmButtonColor: '#EF4444', cancelButtonColor: '#334155',
-      confirmButtonText: 'Oui, supprimer', cancelButtonText: 'Annuler',
+      confirmButtonText: t('deleteBtn'), cancelButtonText: t('cancelBtn'),
       background: '#0D1B2E', color: '#E2EAF2',
     })
     if (!res.isConfirmed) return
     try {
       await api.delete(`/users/${agent.id_user}`)
-      Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1200,
+      Swal.fire({ icon: 'success', title: t('deleted'), timer: 1200,
         showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
       fetchAgents()
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Erreur',
-        text: err.response?.data?.detail || 'Suppression impossible.',
+      Swal.fire({ icon: 'error', title: t('error'),
+        text: err.response?.data?.detail || t('deleteError'),
         background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' })
     }
   }
@@ -210,10 +212,10 @@ export default function UsersPage() {
     `${nom[0]}${prenom ? prenom[0] : ''}`.toUpperCase()
 
   const stats = [
-    { label: 'Total', value: agents.length, icon: Users,     color: 'text-sky-400',    bg: 'bg-sky-500/10' },
-    { label: 'Actifs', value: agents.filter(a => a.actif).length, icon: UserCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: 'Inactifs', value: agents.filter(a => !a.actif).length, icon: UserX, color: 'text-red-400', bg: 'bg-red-500/10' },
-    { label: 'Rôles', value: roles.length, icon: ShieldCheck, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+    { label: t('total'), value: agents.length, icon: Users,     color: 'text-sky-400',    bg: 'bg-sky-500/10' },
+    { label: t('active'), value: agents.filter(a => a.actif).length, icon: UserCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { label: t('inactive'), value: agents.filter(a => !a.actif).length, icon: UserX, color: 'text-red-400', bg: 'bg-red-500/10' },
+    { label: t('roles'), value: roles.length, icon: ShieldCheck, color: 'text-violet-400', bg: 'bg-violet-500/10' },
   ]
 
   return (
@@ -221,10 +223,8 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Gestion des Users</h2>
-          <p className="text-white/70 text-sm mt-1">
-            Créez, gérez et suivez les users de la plateforme
-          </p>
+          <h2 className="text-2xl font-bold text-white">{t('title')}</h2>
+          <p className="text-white/70 text-sm mt-1">{t('subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchAgents} title="Rafraîchir" className="border-white/20 text-white hover:bg-white/10">
@@ -233,12 +233,12 @@ export default function UsersPage() {
           <Dialog open={dialogOpen} onOpenChange={setDialog}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-                <Plus className="h-4 w-4" /> New User
+                <Plus className="h-4 w-4" /> {t('newUser')}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[540px] bg-card border-white/20">
               <DialogHeader>
-                <DialogTitle className="text-white">Créer un User</DialogTitle>
+                <DialogTitle className="text-white">{t('createUserTitle')}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2 text-white">
                 <div className="grid grid-cols-2 gap-3">
@@ -308,10 +308,10 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="outline" onClick={() => setDialog(false)} className="border-white/20 text-white">Annuler</Button>
+                  <Button variant="outline" onClick={() => setDialog(false)} className="border-white/20 text-white">{t('cancel')}</Button>
                   <Button onClick={handleCreate} disabled={submitting}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer le User'}
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('creating')}</> : t('createBtn')}
                   </Button>
                 </div>
               </div>
@@ -322,7 +322,7 @@ export default function UsersPage() {
           <Dialog open={editDialogOpen} onOpenChange={setEditDialog}>
             <DialogContent className="sm:max-w-[540px] bg-card border-white/20">
               <DialogHeader>
-                <DialogTitle className="text-white">Mettre à jour le User</DialogTitle>
+                <DialogTitle className="text-white">{t('editUserTitle')}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2 text-white">
                 <div className="grid grid-cols-2 gap-3">
@@ -391,10 +391,10 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="outline" onClick={() => setEditDialog(false)} className="border-white/20 text-white">Annuler</Button>
+                  <Button variant="outline" onClick={() => setEditDialog(false)} className="border-white/20 text-white">{t('cancel')}</Button>
                   <Button onClick={handleUpdate} disabled={submitting}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mise à jour...</> : 'Mettre à jour'}
+                    {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('updating')}</> : t('updateBtn')}
                   </Button>
                 </div>
               </div>
@@ -427,7 +427,7 @@ export default function UsersPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
-          <Input placeholder="Rechercher par nom, identifiant, email..."
+          <Input placeholder={t('searchPlaceholder')}
             value={search} onChange={e => setSearch(e.target.value)}
             className="pl-9 bg-card border-white/20 text-white placeholder:text-white/40 focus:border-white" />
         </div>
@@ -436,9 +436,9 @@ export default function UsersPage() {
             <SelectValue placeholder="Statut" />
           </SelectTrigger>
           <SelectContent className="bg-card border-white/20 text-white">
-            <SelectItem value="all">Tous</SelectItem>
-            <SelectItem value="active">Actifs</SelectItem>
-            <SelectItem value="inactive">Inactifs</SelectItem>
+            <SelectItem value="all">{t('statusAll')}</SelectItem>
+            <SelectItem value="active">{t('statusActive')}</SelectItem>
+            <SelectItem value="inactive">{t('statusInactive')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -449,15 +449,15 @@ export default function UsersPage() {
           {loading ? (
             <div className="flex items-center justify-center h-48 gap-3 text-white/70">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span>Chargement des users...</span>
+              <span>{t('loading')}</span>
             </div>
           ) : (
             <Table className="border-collapse">
               <TableHeader>
                 <TableRow className="border-white/20 bg-white/5 hover:bg-white/5">
-                  <TableHead className="text-white font-semibold">User</TableHead>
+                  <TableHead className="text-white font-semibold">{t('columnUser')}</TableHead>
                   <TableHead className="text-white font-semibold">Contact</TableHead>
-                  <TableHead className="text-white font-semibold">Rôles</TableHead>
+                  <TableHead className="text-white font-semibold">{t('roles')}</TableHead>
                   <TableHead className="text-white font-semibold">Zone</TableHead>
                   <TableHead className="text-white font-semibold">Statut</TableHead>
                   <TableHead className="w-[50px] border-white/20" />
@@ -501,7 +501,7 @@ export default function UsersPage() {
                     <TableCell className="border-white/20 border-b">
                       <div className="flex flex-wrap gap-1">
                         {agent.roles.length === 0
-                          ? <span className="text-xs text-white/50">Aucun</span>
+                          ? <span className="text-xs text-white/50">{t('noRole')}</span>
                           : agent.roles.map(r => (
                             <Badge key={r.id_role} variant="outline"
                               className={cn('text-xs px-1.5', ROLE_COLORS[r.code] ?? 'bg-white/10 text-white')}>
@@ -563,7 +563,7 @@ export default function UsersPage() {
           {!loading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center h-48 text-white/50 gap-3">
               <Users className="h-10 w-10 opacity-30" />
-              <p className="text-sm">Aucun User trouvé</p>
+              <p className="text-sm">{t('noUsersFound')}</p>
             </div>
           )}
         </CardContent>
@@ -572,7 +572,7 @@ export default function UsersPage() {
       {/* Footer count */}
       {!loading && (
         <p className="text-xs text-white/60 text-right">
-          {filtered.length} user{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
+          {filtered.length} {filtered.length > 1 ? t('columnUser').toLowerCase() + 's' : t('columnUser').toLowerCase()} affiché{filtered.length > 1 ? 's' : ''}
           {filtered.length !== agents.length && ` sur ${agents.length}`}
         </p>
       )}

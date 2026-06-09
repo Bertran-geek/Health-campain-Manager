@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useRouter } from 'next/navigation'
 import { useLocale } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import Swal from 'sweetalert2'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 
@@ -22,22 +23,22 @@ interface AppHeaderProps {
   title?: string
 }
 
-export function AppHeader({ title = 'Dashboard' }: AppHeaderProps) {
+export function AppHeader({ title }: AppHeaderProps) {
   const router = useRouter()
   const locale = useLocale()
+  const t = useTranslations('Header')
+  const tSidebar = useTranslations('Sidebar')
 
   const handleLogout = async () => {
     const result = await Swal.fire({
-      title: locale === 'fr' ? 'Déconnexion' : 'Sign out',
-      text: locale === 'fr'
-        ? 'Voulez-vous vraiment vous déconnecter ?'
-        : 'Are you sure you want to sign out?',
+      title: t('signOutTitle'),
+      text: t('signOutText'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#5C8BB0',
       cancelButtonColor: '#6b7280',
-      confirmButtonText: locale === 'fr' ? 'Oui, déconnecter' : 'Yes, sign out',
-      cancelButtonText: locale === 'fr' ? 'Annuler' : 'Cancel',
+      confirmButtonText: t('signOutConfirm'),
+      cancelButtonText: t('cancel'),
       background: 'rgba(15, 35, 55, 0.97)',
       color: '#ffffff',
     })
@@ -49,8 +50,8 @@ export function AppHeader({ title = 'Dashboard' }: AppHeaderProps) {
 
       await Swal.fire({
         icon: 'success',
-        title: locale === 'fr' ? 'Déconnecté !' : 'Signed out!',
-        text: locale === 'fr' ? 'À bientôt.' : 'See you soon.',
+        title: t('signedOutTitle'),
+        text: t('signedOutText'),
         timer: 1200,
         showConfirmButton: false,
         background: 'rgba(15, 35, 55, 0.97)',
@@ -65,7 +66,7 @@ export function AppHeader({ title = 'Dashboard' }: AppHeaderProps) {
   return (
     <header className="flex items-center justify-between h-16 px-6 border-b border-border bg-card">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+        <h1 className="text-xl font-semibold text-foreground">{title ?? tSidebar('dashboard')}</h1>
       </div>
 
       <div className="flex items-center gap-4">
@@ -76,7 +77,7 @@ export function AppHeader({ title = 'Dashboard' }: AppHeaderProps) {
         <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search campaigns, agents..."
+            placeholder={t('searchPlaceholder')}
             className="w-64 pl-9 bg-muted border-transparent focus:border-primary"
           />
         </div>
@@ -106,18 +107,18 @@ export function AppHeader({ title = 'Dashboard' }: AppHeaderProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>{locale === 'fr' ? 'Mon compte' : 'My Account'}</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('myAccount')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>{locale === 'fr' ? 'Profil' : 'Profile'}</DropdownMenuItem>
-            <DropdownMenuItem>{locale === 'fr' ? 'Paramètres' : 'Settings'}</DropdownMenuItem>
-            <DropdownMenuItem>{locale === 'fr' ? 'Aide' : 'Help & Support'}</DropdownMenuItem>
+            <DropdownMenuItem>{t('profile')}</DropdownMenuItem>
+            <DropdownMenuItem>{t('settings')}</DropdownMenuItem>
+            <DropdownMenuItem>{t('help')}</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive cursor-pointer"
               onClick={handleLogout}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              {locale === 'fr' ? 'Se déconnecter' : 'Sign out'}
+              {t('signOut')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

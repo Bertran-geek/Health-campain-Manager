@@ -10,7 +10,7 @@ export default function DashboardLayout({
     <div className="flex h-screen overflow-hidden bg-background">
       <AppSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AppHeader title="Dashboard" />
+        <AppHeader />
         <main className="flex-1 overflow-auto p-6">
           {children}
         </main>

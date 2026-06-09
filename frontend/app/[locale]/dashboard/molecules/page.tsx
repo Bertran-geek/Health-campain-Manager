@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
 import Swal from 'sweetalert2'
+import { useTranslations } from 'next-intl'
 
 interface Molecule {
   id_molecule: number; nom: string; code: string; description?: string; nombre_dose_standard: number
@@ -22,6 +23,7 @@ const SWL = { background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38B
 const EMPTY = { code: '', nom: '', description: '', nombre_dose_standard: 1 }
 
 export default function MoleculesPage() {
+  const t = useTranslations('Molecules')
   const [molecules, setMolecules] = useState<Molecule[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -37,7 +39,7 @@ export default function MoleculesPage() {
   const fetchMolecules = useCallback(async () => {
     setLoading(true)
     try { const r = await api.get('/molecules'); setMolecules(r.data) }
-    catch { Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les molécules.', ...SWL }) }
+    catch { Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'), ...SWL }) }
     finally { setLoading(false) }
   }, [])
 
@@ -49,15 +51,15 @@ export default function MoleculesPage() {
 
   const handleCreate = async () => {
     if (!form.code || !form.nom) {
-      Swal.fire({ icon: 'warning', title: 'Champs requis', text: 'Code et nom sont obligatoires.', ...SWL }); return
+      Swal.fire({ icon: 'warning', title: t('error'), text: t('requiredFields'), ...SWL }); return
     }
     setSub(true)
     try {
       await api.post('/molecules', { ...form, nombre_dose_standard: Number(form.nombre_dose_standard) })
-      Swal.fire({ icon: 'success', title: 'Molécule créée !', timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
+      Swal.fire({ icon: 'success', title: t('moleculeCreated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setForm({ ...EMPTY }); setCreateOpen(false); fetchMolecules()
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Échec de la création.', ...SWL })
+      Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('createError'), ...SWL })
     } finally { setSub(false) }
   }
 
@@ -71,26 +73,26 @@ export default function MoleculesPage() {
     setEditSub(true)
     try {
       await api.put(`/molecules/${editM.id_molecule}`, { ...editForm, nombre_dose_standard: Number(editForm.nombre_dose_standard) })
-      Swal.fire({ icon: 'success', title: 'Mise à jour réussie !', timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
+      Swal.fire({ icon: 'success', title: t('moleculeUpdated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setEditM(null); fetchMolecules()
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Échec de la mise à jour.', ...SWL })
+      Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('updateError'), ...SWL })
     } finally { setEditSub(false) }
   }
 
   const handleDelete = async (m: Molecule) => {
     const res = await Swal.fire({
-      title: `Supprimer « ${m.nom} » ?`, text: 'Cette molécule sera définitivement supprimée.',
+      title: t('deleteConfirmTitle', {name: m.nom}), text: t('deleteConfirmText'),
       icon: 'warning', showCancelButton: true, confirmButtonColor: '#EF4444', cancelButtonColor: '#334155',
-      confirmButtonText: 'Supprimer', cancelButtonText: 'Annuler', ...SWL,
+      confirmButtonText: t('deleteBtn'), cancelButtonText: t('cancelBtn'), ...SWL,
     })
     if (!res.isConfirmed) return
     try {
       await api.delete(`/molecules/${m.id_molecule}`)
-      Swal.fire({ icon: 'success', title: 'Supprimée !', timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
+      Swal.fire({ icon: 'success', title: t('moleculeDeleted'), timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       fetchMolecules()
     } catch (err: any) {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Suppression impossible.', ...SWL })
+      Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('deleteError'), ...SWL })
     }
   }
 
@@ -99,15 +101,15 @@ export default function MoleculesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Gestion des Molécules</h2>
-          <p className="text-white/60 text-sm mt-1">Gérez les molécules et vaccins utilisés dans les campagnes</p>
+          <h2 className="text-2xl font-bold text-white">{t('title')}</h2>
+          <p className="text-white/60 text-sm mt-1">{t('subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchMolecules} className="border-white/20 text-white hover:bg-white/10">
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button onClick={() => setCreateOpen(true)} className="bg-primary hover:bg-primary/90 text-white gap-2">
-            <Plus className="h-4 w-4" /> Nouvelle Molécule
+            <Plus className="h-4 w-4" /> {t('newMolecule')}
           </Button>
         </div>
       </div>
@@ -117,19 +119,19 @@ export default function MoleculesPage() {
         <Card className="border-white/20 bg-card">
           <CardContent className="flex items-center gap-3 pt-4 pb-4">
             <div className="p-2.5 rounded-xl bg-sky-500/10"><FlaskConical className="h-5 w-5 text-sky-400" /></div>
-            <div><div className="text-2xl font-bold text-sky-400">{molecules.length}</div><div className="text-xs text-white/50">Total molécules</div></div>
+            <div><div className="text-2xl font-bold text-sky-400">{molecules.length}</div><div className="text-xs text-white/50">{t('totalMolecules')}</div></div>
           </CardContent>
         </Card>
         <Card className="border-white/20 bg-card">
           <CardContent className="flex items-center gap-3 pt-4 pb-4">
             <div className="p-2.5 rounded-xl bg-emerald-500/10"><FlaskConical className="h-5 w-5 text-emerald-400" /></div>
-            <div><div className="text-2xl font-bold text-emerald-400">{molecules.filter(m => m.nombre_dose_standard === 1).length}</div><div className="text-xs text-white/50">Dose unique</div></div>
+            <div><div className="text-2xl font-bold text-emerald-400">{molecules.filter(m => m.nombre_dose_standard === 1).length}</div><div className="text-xs text-white/50">{t('singleDose')}</div></div>
           </CardContent>
         </Card>
         <Card className="border-white/20 bg-card">
           <CardContent className="flex items-center gap-3 pt-4 pb-4">
             <div className="p-2.5 rounded-xl bg-violet-500/10"><FlaskConical className="h-5 w-5 text-violet-400" /></div>
-            <div><div className="text-2xl font-bold text-violet-400">{molecules.filter(m => m.nombre_dose_standard > 1).length}</div><div className="text-xs text-white/50">Multi-doses</div></div>
+            <div><div className="text-2xl font-bold text-violet-400">{molecules.filter(m => m.nombre_dose_standard > 1).length}</div><div className="text-xs text-white/50">{t('multiDose')}</div></div>
           </CardContent>
         </Card>
       </div>
@@ -137,7 +139,7 @@ export default function MoleculesPage() {
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-        <Input placeholder="Rechercher par nom ou code..."
+        <Input placeholder={t('searchPlaceholder')}
           value={search} onChange={e => setSearch(e.target.value)}
           className="pl-9 bg-muted border-white/20 text-white placeholder:text-white/30" />
       </div>
@@ -147,17 +149,17 @@ export default function MoleculesPage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center h-48 gap-3 text-white/50">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" /><span>Chargement...</span>
+              <Loader2 className="h-6 w-6 animate-spin text-primary" /><span>{t('loading')}</span>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="border-white/20 bg-white/5 hover:bg-white/5">
-                  <TableHead className="text-white font-medium">Nom</TableHead>
-                  <TableHead className="text-white font-medium">Code</TableHead>
-                  <TableHead className="text-white font-medium">Description</TableHead>
-                  <TableHead className="text-white font-medium">Doses standard</TableHead>
-                  <TableHead className="text-white font-medium text-center w-[120px]">Actions</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnName')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnCode')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnDescription')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('columnDoses')}</TableHead>
+                  <TableHead className="text-white font-medium text-center w-[120px]">{t('columnActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -193,7 +195,7 @@ export default function MoleculesPage() {
           {!loading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center h-48 text-white/30 gap-3">
               <FlaskConical className="h-10 w-10 opacity-30" />
-              <p className="text-sm">Aucune molécule trouvée</p>
+              <p className="text-sm">{t('noMolecules')}</p>
             </div>
           )}
         </CardContent>
@@ -209,28 +211,28 @@ export default function MoleculesPage() {
       {/* ── Create Dialog ── */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-[420px] bg-card border-white/20 text-white">
-          <DialogHeader><DialogTitle className="text-white">Nouvelle Molécule</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">{t('createTitle')}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-white">Code <span className="text-red-400">*</span></Label>
+              <Label className="text-white">{t('codeLabel')} <span className="text-red-400">*</span></Label>
               <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="VPO" className="bg-muted border-white/20 text-white placeholder:text-white/30" />
             </div>
             <div className="space-y-1">
-              <Label className="text-white">Nom <span className="text-red-400">*</span></Label>
+              <Label className="text-white">{t('nameLabel')} <span className="text-red-400">*</span></Label>
               <Input value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} placeholder="Vaccin Polio Oral" className="bg-muted border-white/20 text-white placeholder:text-white/30" />
             </div>
             <div className="space-y-1">
-              <Label className="text-white">Description</Label>
+              <Label className="text-white">{t('descriptionLabel')}</Label>
               <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="bg-muted border-white/20 text-white resize-none placeholder:text-white/30" />
             </div>
             <div className="space-y-1">
-              <Label className="text-white">Doses standard</Label>
+              <Label className="text-white">{t('dosesLabel')}</Label>
               <Input type="number" min={1} value={form.nombre_dose_standard} onChange={e => setForm(f => ({ ...f, nombre_dose_standard: parseInt(e.target.value) || 1 }))} className="bg-muted border-white/20 text-white w-28" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setCreateOpen(false)}>Annuler</Button>
+              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setCreateOpen(false)}>{t('cancel')}</Button>
               <Button onClick={handleCreate} disabled={submitting} className="bg-primary hover:bg-primary/90 text-white">
-                {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Création...</> : 'Créer'}
+                {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('creating')}</> : t('createBtn')}
               </Button>
             </div>
           </div>
@@ -240,28 +242,28 @@ export default function MoleculesPage() {
       {/* ── Edit Dialog ── */}
       <Dialog open={!!editM} onOpenChange={() => setEditM(null)}>
         <DialogContent className="sm:max-w-[420px] bg-card border-white/20 text-white">
-          <DialogHeader><DialogTitle className="text-white">Modifier la molécule</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">{t('editTitle')}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-white">Code <span className="text-red-400">*</span></Label>
+              <Label className="text-white">{t('codeLabel')} <span className="text-red-400">*</span></Label>
               <Input value={editForm.code} onChange={e => setEditForm(f => ({ ...f, code: e.target.value }))} className="bg-muted border-white/20 text-white" />
             </div>
             <div className="space-y-1">
-              <Label className="text-white">Nom <span className="text-red-400">*</span></Label>
+              <Label className="text-white">{t('nameLabel')} <span className="text-red-400">*</span></Label>
               <Input value={editForm.nom} onChange={e => setEditForm(f => ({ ...f, nom: e.target.value }))} className="bg-muted border-white/20 text-white" />
             </div>
             <div className="space-y-1">
-              <Label className="text-white">Description</Label>
+              <Label className="text-white">{t('descriptionLabel')}</Label>
               <Textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={2} className="bg-muted border-white/20 text-white resize-none" />
             </div>
             <div className="space-y-1">
-              <Label className="text-white">Doses standard</Label>
+              <Label className="text-white">{t('dosesLabel')}</Label>
               <Input type="number" min={1} value={editForm.nombre_dose_standard} onChange={e => setEditForm(f => ({ ...f, nombre_dose_standard: parseInt(e.target.value) || 1 }))} className="bg-muted border-white/20 text-white w-28" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setEditM(null)}>Annuler</Button>
+              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setEditM(null)}>{t('cancel')}</Button>
               <Button onClick={handleUpdate} disabled={editSub} className="bg-primary hover:bg-primary/90 text-white">
-                {editSub ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mise à jour...</> : 'Enregistrer'}
+                {editSub ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('saving')}</> : t('saveBtn')}
               </Button>
             </div>
           </div>
