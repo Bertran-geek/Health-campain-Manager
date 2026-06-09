@@ -17,24 +17,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useTranslations } from 'next-intl'
 
 export default function DashboardPage() {
   const summary = mockCampaignSummary
+  const t = useTranslations('Dashboard')
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Campaign Overview</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('title')}</h2>
           <p className="text-muted-foreground">
-            {summary.campaign.name} - Day {Math.ceil((new Date().getTime() - new Date(summary.campaign.startDate).getTime()) / (1000 * 60 * 60 * 24))} of campaign
+            {summary.campaign.name} - {t('daySuffix', {day: Math.ceil((new Date().getTime() - new Date(summary.campaign.startDate).getTime()) / (1000 * 60 * 60 * 24))})}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Select defaultValue="camp1">
             <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select campaign" />
+              <SelectValue placeholder={t('selectCampaign')} />
             </SelectTrigger>
             <SelectContent>
               {mockCampaigns.map((campaign) => (
@@ -46,7 +48,7 @@ export default function DashboardPage() {
           </Select>
           <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
             <Calendar className="mr-2 h-4 w-4" />
-            Export Report
+            {t('exportReport')}
           </Button>
         </div>
       </div>
@@ -54,32 +56,32 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Total Reached"
+          title={t('totalReached')}
           value={summary.coverage.totalReached.toLocaleString()}
-          description="children vaccinated"
+          description={t('childrenVaccinated')}
           icon={Users}
           trend={{ value: 12.5, isPositive: true }}
           variant="primary"
         />
         <StatCard
-          title="Coverage Rate"
+          title={t('coverageRate')}
           value={`${summary.coverage.coveragePercentage.toFixed(1)}%`}
-          description="of target population"
+          description={t('targetPopulation')}
           icon={Target}
           trend={{ value: 8.2, isPositive: true }}
           variant="success"
         />
         <StatCard
-          title="Active Teams"
+          title={t('activeTeams')}
           value={`${summary.teamsActive}/${summary.teamsTotal}`}
-          description="teams deployed today"
+          description={t('teamsDeployed')}
           icon={MapPin}
           variant="default"
         />
         <StatCard
-          title="Active Alerts"
+          title={t('activeAlerts')}
           value={summary.alertsNew}
-          description={`${summary.alertsCritical} critical`}
+          description={t('criticalCount', {count: summary.alertsCritical})}
           icon={AlertTriangle}
           variant={summary.alertsCritical > 0 ? 'destructive' : 'warning'}
         />
@@ -96,18 +98,18 @@ export default function DashboardPage() {
             <Card>
               <CardContent className="pt-4">
                 <div className="text-2xl font-bold text-foreground">{summary.villagesCovered}</div>
-                <div className="text-sm text-muted-foreground">Villages Covered</div>
+                <div className="text-sm text-muted-foreground">{t('villagesCovered')}</div>
                 <div className="text-xs text-primary mt-1">
-                  of {summary.villagesTotal} total
+                  {t('ofTotal', {total: summary.villagesTotal})}
                 </div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4">
                 <div className="text-2xl font-bold text-foreground">{summary.agentsActive}</div>
-                <div className="text-sm text-muted-foreground">Agents Active</div>
+                <div className="text-sm text-muted-foreground">{t('agentsActive')}</div>
                 <div className="text-xs text-success mt-1">
-                  {((summary.agentsActive / summary.agentsTotal) * 100).toFixed(0)}% checked in
+                  {t('checkedIn', {pct: ((summary.agentsActive / summary.agentsTotal) * 100).toFixed(0)})}
                 </div>
               </CardContent>
             </Card>
@@ -116,9 +118,9 @@ export default function DashboardPage() {
                 <div className="text-2xl font-bold text-foreground">
                   {((summary.dailyProgress[summary.dailyProgress.length - 1]?.reached || 0) / 1000).toFixed(0)}K
                 </div>
-                <div className="text-sm text-muted-foreground">Today&apos;s Progress</div>
+                <div className="text-sm text-muted-foreground">{t('todaysProgress')}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Target: {((summary.dailyProgress[0]?.target || 0) / 1000).toFixed(0)}K
+                  {t('targetValue', {val: ((summary.dailyProgress[0]?.target || 0) / 1000).toFixed(0)})}
                 </div>
               </CardContent>
             </Card>
@@ -127,9 +129,9 @@ export default function DashboardPage() {
                 <div className="text-2xl font-bold text-foreground">
                   {(summary.campaign.budgetAllocated / 1000).toFixed(0)}K
                 </div>
-                <div className="text-sm text-muted-foreground">Budget (USD)</div>
+                <div className="text-sm text-muted-foreground">{t('budget')}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  allocated for campaign
+                  {t('allocatedForCampaign')}
                 </div>
               </CardContent>
             </Card>
@@ -148,9 +150,9 @@ export default function DashboardPage() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-lg font-semibold">Active Campaigns</CardTitle>
+            <CardTitle className="text-lg font-semibold">{t('activeCampaigns')}</CardTitle>
             <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
-              View all
+              {t('viewAll')}
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">

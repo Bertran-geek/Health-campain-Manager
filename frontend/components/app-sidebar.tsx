@@ -19,29 +19,34 @@ import {
   FlaskConical,
 } from 'lucide-react'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-const navigationItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Unit of organisation', href: '/dashboard/hierarchy', icon: Globe },
-  { name: 'Campaigns', href: '/dashboard/campaigns', icon: Megaphone },
-  { name: 'Molecules', href: '/dashboard/molecules', icon: FlaskConical },
-  { name: 'Users', href: '/dashboard/agents', icon: Users },
-  { name: 'Data Collection', href: '/dashboard/data-collection', icon: ClipboardList },
-  { name: 'Coverage Map', href: '/dashboard/map', icon: Map },
-  { name: 'Alerts', href: '/dashboard/alerts', icon: Bell },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
+const NAV_HREFS = [
+  { key: 'dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { key: 'hierarchy', href: '/dashboard/hierarchy', icon: Globe },
+  { key: 'campaigns', href: '/dashboard/campaigns', icon: Megaphone },
+  { key: 'molecules', href: '/dashboard/molecules', icon: FlaskConical },
+  { key: 'users', href: '/dashboard/agents', icon: Users },
+  { key: 'dataCollection', href: '/dashboard/data-collection', icon: ClipboardList },
+  { key: 'coverageMap', href: '/dashboard/map', icon: Map },
+  { key: 'alerts', href: '/dashboard/alerts', icon: Bell },
+  { key: 'reports', href: '/dashboard/reports', icon: FileText },
 ]
 
-const bottomNavigationItems = [
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+const BOTTOM_HREFS = [
+  { key: 'settings', href: '/dashboard/settings', icon: Settings },
 ]
 
 export function AppSidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const t = useTranslations('Sidebar')
+
+  const navigationItems = NAV_HREFS.map(item => ({ ...item, name: t(item.key as any) }))
+  const bottomNavigationItems = BOTTOM_HREFS.map(item => ({ ...item, name: t(item.key as any) }))
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -163,7 +168,7 @@ export function AppSidebar() {
             ) : (
               <>
                 <ChevronLeft className="h-4 w-4 mr-2" />
-                Collapse
+                {t('collapse')}
               </>
             )}
           </Button>

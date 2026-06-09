@@ -9,6 +9,7 @@ import api from '@/lib/api'
 import Swal from 'sweetalert2'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
+import { useTranslations } from 'next-intl'
 
 type Level = 'region' | 'departement' | 'phc' | 'chw'
 
@@ -44,6 +45,7 @@ function NodeItem({
   onToggle: (node: BaseNode) => void,
   onCreateChild: (node: BaseNode) => void
 }) {
+  const t = useTranslations('Hierarchy')
   return (
     <div className="flex flex-col text-white">
       <div 
@@ -75,7 +77,7 @@ function NodeItem({
             onClick={(e) => { e.stopPropagation(); onCreateChild(node) }}
           >
             <Plus className="h-3 w-3 mr-1" />
-            Ajouter {node.level === 'region' ? 'Département' : node.level === 'departement' ? 'CSPS/PHC' : 'ASBC/CHW'}
+            {node.level === 'region' ? t('addDept') : node.level === 'departement' ? t('addPHC') : t('addCHW')}
           </Button>
         )}
       </div>
@@ -84,12 +86,12 @@ function NodeItem({
         <div className="flex flex-col">
           {!node.childrenLoaded && (
             <div className="p-4 text-center text-white/50 text-sm flex items-center justify-center gap-2" style={{ paddingLeft: `${(depth + 1) * 2 + 1}rem` }}>
-              <Loader2 className="h-4 w-4 animate-spin" /> Chargement...
+              <Loader2 className="h-4 w-4 animate-spin" /> {t('loading')}
             </div>
           )}
           {node.childrenLoaded && node.children.length === 0 && (
             <div className="p-4 text-white/40 text-sm italic" style={{ paddingLeft: `${(depth + 1) * 2 + 1}rem` }}>
-              Aucun élément trouvé.
+              {t('noChildren')}
             </div>
           )}
           {node.childrenLoaded && node.children.map(child => (
@@ -102,6 +104,7 @@ function NodeItem({
 }
 
 export default function HierarchyPage() {
+  const t = useTranslations('Hierarchy')
   const [regions, setRegions] = useState<BaseNode[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch]   = useState('')
@@ -121,7 +124,7 @@ export default function HierarchyPage() {
         children: []
       })))
     } catch {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les régions.', background: '#0D1B2E', color: '#fff' })
+      Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'), background: '#0D1B2E', color: '#fff' })
     } finally {
       setLoading(false)
     }
@@ -150,7 +153,7 @@ export default function HierarchyPage() {
       const res = await api.get(endpoint)
       return (res.data.items || []).map(mapper)
     } catch {
-      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les sous-éléments.', background: '#0D1B2E', color: '#fff' })
+      Swal.fire({ icon: 'error', title: t('error'), text: t('childLoadError'), background: '#0D1B2E', color: '#fff' })
       return []
     }
   }
@@ -182,14 +185,14 @@ export default function HierarchyPage() {
 
   const handleCreateRoot = async () => {
     const { value: formValues } = await Swal.fire({
-      title: 'Créer une Région',
+      title: t('createRegion'),
       html:
-        '<input id="swal-nom" class="swal2-input" placeholder="Nom de la région" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">' +
-        '<input id="swal-code" class="swal2-input" placeholder="Code (Optionnel)" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">',
+        '<input id="swal-nom" class="swal2-input" placeholder="' + t('regionName') + '" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">' +
+        '<input id="swal-code" class="swal2-input" placeholder="' + t('codeOptional') + '" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">',
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: 'Créer',
-      cancelButtonText: 'Annuler',
+      confirmButtonText: t('createBtn'),
+      cancelButtonText: t('cancel'),
       background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8',
       preConfirm: () => {
         return {
@@ -202,10 +205,10 @@ export default function HierarchyPage() {
     if (formValues && formValues.nom_region) {
       try {
         await api.post('/regions', { nom_region: formValues.nom_region, code: formValues.code || undefined })
-        Swal.fire({ icon: 'success', title: 'Région créée !', timer: 1500, showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2' })
+        Swal.fire({ icon: 'success', title: t('createSuccess'), timer: 1500, showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2' })
         fetchRoot()
       } catch (err: any) {
-        Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Création impossible.', background: '#0D1B2E', color: '#E2EAF2' })
+        Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('createError'), background: '#0D1B2E', color: '#E2EAF2' })
       }
     }
   }
@@ -216,15 +219,15 @@ export default function HierarchyPage() {
     let payloadBuilder = (v: any) => ({})
     
     if (node.level === 'region') {
-      title = `Nouveau Département dans ${node.name}`
+      title = t('newDeptIn', {name: node.name})
       endpoint = '/departements'
       payloadBuilder = (v: any) => ({ nom_dpt: v.nom, code: v.code || undefined, id_region: node.id })
     } else if (node.level === 'departement') {
-      title = `Nouveau CSPS/PHC dans ${node.name}`
+      title = t('newPhcIn', {name: node.name})
       endpoint = '/phcs'
       payloadBuilder = (v: any) => ({ nom_phc: v.nom, code: v.code || undefined, id_dpt: node.id })
     } else if (node.level === 'phc') {
-      title = `Nouvel ASBC/CHW rattaché à ${node.name}`
+      title = t('newChwIn', {name: node.name})
       endpoint = '/chws'
       payloadBuilder = (v: any) => ({ nom: v.nom, prenom: v.prenom || '', code: v.code || undefined, id_phc: node.id, actif: true })
     }
@@ -232,13 +235,13 @@ export default function HierarchyPage() {
     const { value: formValues } = await Swal.fire({
       title,
       html:
-        `<input id="swal-nom" class="swal2-input" placeholder="Nom ${node.level === 'phc' ? 'de famille' : ''}" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">` +
-        (node.level === 'phc' ? '<input id="swal-prenom" class="swal2-input" placeholder="Prénom" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">' : '') +
-        '<input id="swal-code" class="swal2-input" placeholder="Code (Optionnel)" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">',
+        '<input id="swal-nom" class="swal2-input" placeholder="' + (node.level === 'phc' ? t('lastName') : t('nameLabel')) + '" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">' +
+        (node.level === 'phc' ? '<input id="swal-prenom" class="swal2-input" placeholder="' + t('firstName') + '" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">' : '') +
+        '<input id="swal-code" class="swal2-input" placeholder="' + t('codeOptional') + '" style="background:#1A2F45;color:#fff;border:1px solid rgba(255,255,255,0.2)">',
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: 'Créer',
-      cancelButtonText: 'Annuler',
+      confirmButtonText: t('createBtn'),
+      cancelButtonText: t('cancel'),
       background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8',
       preConfirm: () => {
         return {
@@ -252,13 +255,13 @@ export default function HierarchyPage() {
     if (formValues && formValues.nom) {
       try {
         await api.post(endpoint, payloadBuilder(formValues))
-        Swal.fire({ icon: 'success', title: 'Créé avec succès !', timer: 1500, showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2' })
+        Swal.fire({ icon: 'success', title: t('createSuccess'), timer: 1500, showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2' })
         
         // Reload children for this node
         const children = await loadChildren(node)
         setRegions(prev => updateNodeInTree(prev, node.id, node.level, n => ({ ...n, children, childrenLoaded: true, isExpanded: true })))
       } catch (err: any) {
-        Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Création impossible.', background: '#0D1B2E', color: '#E2EAF2' })
+        Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('createError'), background: '#0D1B2E', color: '#E2EAF2' })
       }
     }
   }
@@ -269,20 +272,18 @@ export default function HierarchyPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Organigramme Géographique</h2>
-          <p className="text-white/70 text-sm mt-1">
-            Gérez l'arborescence des zones (Régions, Départements, CSPS, ASBC)
-          </p>
+          <h2 className="text-2xl font-bold text-white">{t('title')}</h2>
+          <p className="text-white/70 text-sm mt-1">{t('subtitle')}</p>
         </div>
         <Button onClick={handleCreateRoot} className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2">
-          <Plus className="h-4 w-4" /> Créer une Région
+          <Plus className="h-4 w-4" /> {t('createRegion')}
         </Button>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
         <Input 
-          placeholder="Rechercher une région..." 
+          placeholder={t('searchPlaceholder')} 
           value={search} 
           onChange={e => setSearch(e.target.value)}
           className="pl-9 bg-card border-white/20 text-white focus:border-white w-full sm:w-1/3" 
@@ -291,18 +292,18 @@ export default function HierarchyPage() {
 
       <Card className="border-white/20 bg-card overflow-hidden">
         <CardHeader className="bg-white/5 border-b border-white/10 pb-4">
-          <CardTitle className="text-lg text-white">Hiérarchie Nationale</CardTitle>
+          <CardTitle className="text-lg text-white">{t('cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center h-64 gap-3 text-white/70">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span>Chargement...</span>
+              <span>{t('loading')}</span>
             </div>
           ) : filteredRegions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-white/50 gap-3">
               <MapPin className="h-10 w-10 opacity-30" />
-              <p>Aucune région trouvée.</p>
+              <p>{t('noRegions')}</p>
             </div>
           ) : (
             <div className="flex flex-col w-full">

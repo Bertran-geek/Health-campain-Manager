@@ -238,3 +238,21 @@ class AuditLog(Base):
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
 
     user = relationship("User", back_populates="audit_logs")
+
+
+class Target(Base):
+    """Target population for campaigns (cibles)."""
+    __tablename__ = "target"
+
+    id_target = Column(Integer, primary_key=True, autoincrement=True)
+    first_name_target = Column(String(255), nullable=True)
+    last_name_target = Column(String(255), nullable=True)
+    age = Column(Integer, nullable=True)
+    sex = Column(String(1), nullable=True)
+    chw_id = Column(Integer, ForeignKey("chw.id_chw", ondelete="RESTRICT", onupdate="RESTRICT"), nullable=True, index=True)
+    vaccinate = Column(Boolean, default=False)
+    id_campain = Column(BigInteger, ForeignKey("campaign.id_campaign", ondelete="RESTRICT", onupdate="RESTRICT"), nullable=True, index=True)
+    beneficiaire = Column(Boolean, default=False)
+
+    chw = relationship("CHW")
+    campaign = relationship("Campaign")

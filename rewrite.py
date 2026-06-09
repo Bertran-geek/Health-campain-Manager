@@ -1,4 +1,8 @@
-'use client'
+import os
+
+file_path = r"C:\Users\bouedraogo\Desktop\HEALTH_CAMPAIGN_MANAGER\frontend\app\[locale]\dashboard\data-collection\page.tsx"
+
+content = """'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -386,3 +390,9 @@ export default function DataCollectionPage() {
     </div>
   )
 }
+"""
+
+with open(file_path, "w", encoding="utf-8") as f:
+    f.write(content)
+
+print("File completely replaced successfully!")
