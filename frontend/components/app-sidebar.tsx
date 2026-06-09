@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
+  FlaskConical,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ const navigationItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Unit of organisation', href: '/dashboard/hierarchy', icon: Globe },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: Megaphone },
+  { name: 'Molecules', href: '/dashboard/molecules', icon: FlaskConical },
   { name: 'Users', href: '/dashboard/agents', icon: Users },
   { name: 'Data Collection', href: '/dashboard/data-collection', icon: ClipboardList },
   { name: 'Coverage Map', href: '/dashboard/map', icon: Map },
