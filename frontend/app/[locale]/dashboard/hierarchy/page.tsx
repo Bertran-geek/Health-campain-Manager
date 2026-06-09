@@ -109,7 +109,7 @@ export default function HierarchyPage() {
   const fetchRoot = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/geography/regions?page_size=100')
+      const res = await api.get('/regions?page_size=100')
       const items = res.data.items || []
       setRegions(items.map((r: any) => ({
         id: r.id_region,
@@ -135,13 +135,13 @@ export default function HierarchyPage() {
       let mapper = (item: any): BaseNode => ({ id: 0, name: '', code: '', level: 'chw', isExpanded: false, childrenLoaded: false, children: [] })
       
       if (node.level === 'region') {
-        endpoint = `/geography/departements?region_id=${node.id}&page_size=100`
+        endpoint = `/departements?region_id=${node.id}&page_size=100`
         mapper = (d: any) => ({ id: d.id_dpt, name: d.nom_dpt, code: d.code || `DPT-${d.id_dpt}`, level: 'departement', parentId: node.id, isExpanded: false, childrenLoaded: false, children: [] })
       } else if (node.level === 'departement') {
-        endpoint = `/geography/phcs?dpt_id=${node.id}&page_size=100`
+        endpoint = `/phcs?dpt_id=${node.id}&page_size=100`
         mapper = (p: any) => ({ id: p.id_phc, name: p.nom_phc, code: p.code || `PHC-${p.id_phc}`, level: 'phc', parentId: node.id, isExpanded: false, childrenLoaded: false, children: [] })
       } else if (node.level === 'phc') {
-        endpoint = `/geography/chws?phc_id=${node.id}&page_size=100`
+        endpoint = `/chws?phc_id=${node.id}&page_size=100`
         mapper = (c: any) => ({ id: c.id_chw, name: `${c.nom} ${c.prenom || ''}`.trim(), code: c.code || `CHW-${c.id_chw}`, level: 'chw', parentId: node.id, isExpanded: false, childrenLoaded: false, children: [] })
       } else {
         return []
@@ -201,7 +201,7 @@ export default function HierarchyPage() {
 
     if (formValues && formValues.nom_region) {
       try {
-        await api.post('/geography/regions', { nom_region: formValues.nom_region, code: formValues.code || undefined })
+        await api.post('/regions', { nom_region: formValues.nom_region, code: formValues.code || undefined })
         Swal.fire({ icon: 'success', title: 'Région créée !', timer: 1500, showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2' })
         fetchRoot()
       } catch (err: any) {
@@ -217,15 +217,15 @@ export default function HierarchyPage() {
     
     if (node.level === 'region') {
       title = `Nouveau Département dans ${node.name}`
-      endpoint = '/geography/departements'
+      endpoint = '/departements'
       payloadBuilder = (v: any) => ({ nom_dpt: v.nom, code: v.code || undefined, id_region: node.id })
     } else if (node.level === 'departement') {
       title = `Nouveau CSPS/PHC dans ${node.name}`
-      endpoint = '/geography/phcs'
+      endpoint = '/phcs'
       payloadBuilder = (v: any) => ({ nom_phc: v.nom, code: v.code || undefined, id_dpt: node.id })
     } else if (node.level === 'phc') {
       title = `Nouvel ASBC/CHW rattaché à ${node.name}`
-      endpoint = '/geography/chws'
+      endpoint = '/chws'
       payloadBuilder = (v: any) => ({ nom: v.nom, prenom: v.prenom || '', code: v.code || undefined, id_phc: node.id, actif: true })
     }
 
