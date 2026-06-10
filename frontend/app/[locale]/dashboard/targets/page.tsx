@@ -9,7 +9,8 @@ import {
   Loader2,
   RefreshCw,
   CheckCircle2,
-  XCircle
+  XCircle,
+  QrCode
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,7 +40,7 @@ import {
 } from '@/components/ui/select'
 import Swal from 'sweetalert2'
 import api from '@/lib/api'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 
 interface Target {
   id_target: number
@@ -58,14 +59,24 @@ interface Campaign {
   nom: string
 }
 
+interface CHW {
+  id_chw: number
+  nom: string
+  prenom: string | null
+}
+
 const SWL = { background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' }
 
 export default function TargetsPage() {
   const t = useTranslations('Targets')
-  
+  const locale = useLocale()
+
   const [targets, setTargets] = useState<Target[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [chws, setChws] = useState<CHW[]>([])
   const [loading, setLoading] = useState(true)
+  const [qrOpen, setQrOpen] = useState(false)
+  const [qrUrl, setQrUrl] = useState('')
   const [search, setSearch] = useState('')
   
   // Dialogs state
@@ -90,15 +101,19 @@ export default function TargetsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [targetsRes, campaignsRes] = await Promise.all([
+      const [targetsRes, campaignsRes, chwsRes] = await Promise.allSettled([
         api.get('/targets?limit=500'),
-        api.get('/campaigns?page_size=100')
+        api.get('/campaigns?page_size=100'),
+        api.get('/chws?page_size=100')
       ])
-      setTargets(targetsRes.data.items || [])
-      setCampaigns(campaignsRes.data.items || [])
-    } catch (err) {
-      console.error(err)
-      Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'), ...SWL })
+      if (targetsRes.status === 'fulfilled') setTargets(targetsRes.value.data.items || [])
+      if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.data.items || [])
+      if (chwsRes.status === 'fulfilled') setChws(chwsRes.value.data.items || [])
+
+      if (targetsRes.status === 'rejected') {
+        console.error('targets fetch failed', targetsRes.reason)
+        Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'), ...SWL })
+      }
     } finally {
       setLoading(false)
     }
@@ -164,6 +179,7 @@ export default function TargetsPage() {
 
   const handleDelete = async (id: number) => {
     const r = await Swal.fire({
+      ...SWL,
       title: t('deleteConfirmTitle'),
       text: t('deleteConfirmText'),
       icon: 'warning',
@@ -172,7 +188,6 @@ export default function TargetsPage() {
       cancelButtonColor: '#334155',
       confirmButtonText: t('deleteBtn'),
       cancelButtonText: t('cancelBtn'),
-      ...SWL
     })
 
     if (r.isConfirmed) {
@@ -202,6 +217,23 @@ export default function TargetsPage() {
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchData} className="border-white/20 text-white hover:bg-white/10">
             <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const prefix = locale !== 'en' ? `/${locale}` : ''
+              const appHost = process.env.NEXT_PUBLIC_APP_HOST
+              const base = appHost
+                ? `http://${appHost}`
+                : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
+              setQrUrl(`${base}${prefix}/register`)
+              setQrOpen(true)
+            }}
+            className="border-white/20 text-white hover:bg-white/10"
+            title={t('qrCodeBtn')}
+          >
+            <QrCode className="h-4 w-4" />
           </Button>
           <Button onClick={handleOpenCreate} className="bg-primary hover:bg-primary/90 text-white gap-2">
             <Plus className="h-4 w-4" /> {t('newTarget')}
@@ -345,13 +377,18 @@ export default function TargetsPage() {
               </div>
               <div className="space-y-1">
                 <Label className="text-white">{t('agentLabel')}</Label>
-                <Input 
-                  type="number"
-                  value={form.chw_id} 
-                  onChange={e => setForm({...form, chw_id: e.target.value})} 
-                  className="bg-muted border-white/20 text-white" 
-                  placeholder={t('agentPlaceholder')}
-                />
+                <Select value={form.chw_id} onValueChange={v => setForm({...form, chw_id: v})}>
+                  <SelectTrigger className="bg-muted border-white/20 text-white">
+                    <SelectValue placeholder={t('selectAgent')} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-white/20">
+                    {chws.map(c => (
+                      <SelectItem key={c.id_chw} value={String(c.id_chw)}>
+                        {c.nom}{c.prenom ? ` ${c.prenom}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -383,6 +420,39 @@ export default function TargetsPage() {
                 {t('saveBtn')}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Dialog */}
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="sm:max-w-[420px] bg-card border-white/20 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">{t('qrCodeTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-white/60 text-sm">{t('qrCodeDesc')}</p>
+            <div className="flex justify-center">
+              {qrUrl && (
+                <div className="bg-white p-3 rounded-xl shadow-lg">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrUrl)}&size=200x200`}
+                    alt="QR Code"
+                    width={200}
+                    height={200}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/60 text-xs">{t('qrCodeUrlLabel')}</Label>
+              <Input
+                value={qrUrl}
+                onChange={e => setQrUrl(e.target.value)}
+                className="bg-muted border-white/20 text-white text-xs font-mono"
+              />
+            </div>
+            <p className="text-white/40 text-xs">{t('qrCodeHint')}</p>
           </div>
         </DialogContent>
       </Dialog>

@@ -13,6 +13,10 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Accept build-time public env vars
+ARG NEXT_PUBLIC_APP_HOST
+ENV NEXT_PUBLIC_APP_HOST=$NEXT_PUBLIC_APP_HOST
+
 # Build the application
 RUN pnpm build
 
