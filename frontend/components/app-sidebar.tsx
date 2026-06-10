@@ -30,7 +30,7 @@ const NAV_HREFS = [
   { key: 'campaigns', href: '/dashboard/campaigns', icon: Megaphone },
   { key: 'molecules', href: '/dashboard/molecules', icon: FlaskConical },
   { key: 'users', href: '/dashboard/agents', icon: Users },
-  { key: 'dataCollection', href: '/dashboard/data-collection', icon: ClipboardList },
+  { key: 'targets', href: '/dashboard/targets', icon: ClipboardList },
   { key: 'coverageMap', href: '/dashboard/map', icon: Map },
   { key: 'alerts', href: '/dashboard/alerts', icon: Bell },
   { key: 'reports', href: '/dashboard/reports', icon: FileText },
