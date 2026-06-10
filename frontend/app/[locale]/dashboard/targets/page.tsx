@@ -9,7 +9,8 @@ import {
   Loader2,
   RefreshCw,
   CheckCircle2,
-  XCircle
+  XCircle,
+  QrCode
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ import {
 } from '@/components/ui/select'
 import Swal from 'sweetalert2'
 import api from '@/lib/api'
+import { useTranslations, useLocale } from 'next-intl'
 
 interface Target {
   id_target: number
@@ -57,12 +59,24 @@ interface Campaign {
   nom: string
 }
 
+interface CHW {
+  id_chw: number
+  nom: string
+  prenom: string | null
+}
+
 const SWL = { background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' }
 
-export default function DataCollectionPage() {
+export default function TargetsPage() {
+  const t = useTranslations('Targets')
+  const locale = useLocale()
+
   const [targets, setTargets] = useState<Target[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [chws, setChws] = useState<CHW[]>([])
   const [loading, setLoading] = useState(true)
+  const [qrOpen, setQrOpen] = useState(false)
+  const [qrUrl, setQrUrl] = useState('')
   const [search, setSearch] = useState('')
   
   // Dialogs state
@@ -87,15 +101,19 @@ export default function DataCollectionPage() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [targetsRes, campaignsRes] = await Promise.all([
+      const [targetsRes, campaignsRes, chwsRes] = await Promise.allSettled([
         api.get('/targets?limit=500'),
-        api.get('/campaigns?page_size=100')
+        api.get('/campaigns?page_size=100'),
+        api.get('/chws?page_size=100')
       ])
-      setTargets(targetsRes.data.items || [])
-      setCampaigns(campaignsRes.data.items || [])
-    } catch (err) {
-      console.error(err)
-      Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de charger les données.', ...SWL })
+      if (targetsRes.status === 'fulfilled') setTargets(targetsRes.value.data.items || [])
+      if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.data.items || [])
+      if (chwsRes.status === 'fulfilled') setChws(chwsRes.value.data.items || [])
+
+      if (targetsRes.status === 'rejected') {
+        console.error('targets fetch failed', targetsRes.reason)
+        Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'), ...SWL })
+      }
     } finally {
       setLoading(false)
     }
@@ -144,16 +162,16 @@ export default function DataCollectionPage() {
 
       if (isEditing && currentId) {
         await api.put(`/targets/${currentId}`, payload)
-        Swal.fire({ icon: 'success', title: 'Mise à jour réussie', timer: 1500, showConfirmButton: false, ...SWL })
+        Swal.fire({ icon: 'success', title: t('updateSuccess'), timer: 1500, showConfirmButton: false, ...SWL })
       } else {
         await api.post('/targets', payload)
-        Swal.fire({ icon: 'success', title: 'Cible créée', timer: 1500, showConfirmButton: false, ...SWL })
+        Swal.fire({ icon: 'success', title: t('createSuccess'), timer: 1500, showConfirmButton: false, ...SWL })
       }
       setIsDialogOpen(false)
       fetchData()
     } catch (err: any) {
       console.error(err)
-      Swal.fire({ icon: 'error', title: 'Erreur', text: err.response?.data?.detail || 'Une erreur est survenue', ...SWL })
+      Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('defaultError'), ...SWL })
     } finally {
       setSubmitting(false)
     }
@@ -161,24 +179,24 @@ export default function DataCollectionPage() {
 
   const handleDelete = async (id: number) => {
     const r = await Swal.fire({
-      title: 'Supprimer ?',
-      text: 'Voulez-vous vraiment supprimer cette cible ?',
+      ...SWL,
+      title: t('deleteConfirmTitle'),
+      text: t('deleteConfirmText'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#EF4444',
       cancelButtonColor: '#334155',
-      confirmButtonText: 'Supprimer',
-      cancelButtonText: 'Annuler',
-      ...SWL
+      confirmButtonText: t('deleteBtn'),
+      cancelButtonText: t('cancelBtn'),
     })
 
     if (r.isConfirmed) {
       try {
         await api.delete(`/targets/${id}`)
-        Swal.fire({ icon: 'success', title: 'Supprimé !', timer: 1500, showConfirmButton: false, ...SWL })
+        Swal.fire({ icon: 'success', title: t('deletedTitle'), timer: 1500, showConfirmButton: false, ...SWL })
         fetchData()
       } catch (err: any) {
-        Swal.fire({ icon: 'error', title: 'Erreur', text: 'Impossible de supprimer.', ...SWL })
+        Swal.fire({ icon: 'error', title: t('error'), text: t('deleteError'), ...SWL })
       }
     }
   }
@@ -193,15 +211,32 @@ export default function DataCollectionPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Collecte de données (Cibles)</h2>
-          <p className="text-white/60 text-sm mt-1">Gérez les personnes ciblées par vos campagnes</p>
+          <h2 className="text-2xl font-bold text-white">{t('pageTitle')}</h2>
+          <p className="text-white/60 text-sm mt-1">{t('pageDescription')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchData} className="border-white/20 text-white hover:bg-white/10">
             <RefreshCw className="h-4 w-4" />
           </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const prefix = locale !== 'en' ? `/${locale}` : ''
+              const appHost = process.env.NEXT_PUBLIC_APP_HOST
+              const base = appHost
+                ? `http://${appHost}`
+                : (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
+              setQrUrl(`${base}${prefix}/register`)
+              setQrOpen(true)
+            }}
+            className="border-white/20 text-white hover:bg-white/10"
+            title={t('qrCodeBtn')}
+          >
+            <QrCode className="h-4 w-4" />
+          </Button>
           <Button onClick={handleOpenCreate} className="bg-primary hover:bg-primary/90 text-white gap-2">
-            <Plus className="h-4 w-4" /> Nouvelle Cible
+            <Plus className="h-4 w-4" /> {t('newTarget')}
           </Button>
         </div>
       </div>
@@ -211,7 +246,7 @@ export default function DataCollectionPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           <Input 
-            placeholder="Rechercher par nom, prénom..." 
+            placeholder={t('searchPlaceholder')} 
             value={search} 
             onChange={e => setSearch(e.target.value)} 
             className="pl-9 bg-muted border-white/20 text-white placeholder:text-white/30" 
@@ -225,40 +260,40 @@ export default function DataCollectionPage() {
           {loading ? (
             <div className="flex items-center justify-center h-48 gap-3 text-white/50">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span>Chargement des cibles...</span>
+              <span>{t('loading')}</span>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow className="border-white/20 bg-white/5 hover:bg-white/5">
-                  <TableHead className="text-white font-medium">Nom</TableHead>
-                  <TableHead className="text-white font-medium">Prénom</TableHead>
-                  <TableHead className="text-white font-medium">Âge</TableHead>
-                  <TableHead className="text-white font-medium">Sexe</TableHead>
-                  <TableHead className="text-white font-medium text-center">Vacciné(e)</TableHead>
-                  <TableHead className="text-white font-medium text-center">Bénéficiaire</TableHead>
-                  <TableHead className="text-white font-medium text-center w-[100px]">Actions</TableHead>
+                  <TableHead className="text-white font-medium">{t('colLastName')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('colFirstName')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('colAge')}</TableHead>
+                  <TableHead className="text-white font-medium">{t('colSex')}</TableHead>
+                  <TableHead className="text-white font-medium text-center">{t('colVaccinated')}</TableHead>
+                  <TableHead className="text-white font-medium text-center">{t('colBeneficiary')}</TableHead>
+                  <TableHead className="text-white font-medium text-center w-[100px]">{t('colActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTargets.map(t => (
-                  <TableRow key={t.id_target} className="border-white/20 hover:bg-white/5">
-                    <TableCell className="text-white">{t.last_name_target || '-'}</TableCell>
-                    <TableCell className="text-white">{t.first_name_target || '-'}</TableCell>
-                    <TableCell className="text-white">{t.age ?? '-'}</TableCell>
-                    <TableCell className="text-white">{t.sex === 'M' ? 'Homme' : t.sex === 'F' ? 'Femme' : '-'}</TableCell>
+                {filteredTargets.map(tData => (
+                  <TableRow key={tData.id_target} className="border-white/20 hover:bg-white/5">
+                    <TableCell className="text-white">{tData.last_name_target || '-'}</TableCell>
+                    <TableCell className="text-white">{tData.first_name_target || '-'}</TableCell>
+                    <TableCell className="text-white">{tData.age ?? '-'}</TableCell>
+                    <TableCell className="text-white">{tData.sex === 'M' ? t('sexMale') : tData.sex === 'F' ? t('sexFemale') : '-'}</TableCell>
                     <TableCell className="text-center">
-                      {t.vaccinate ? <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" /> : <XCircle className="h-5 w-5 text-red-400 mx-auto" />}
+                      {tData.vaccinate ? <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" /> : <XCircle className="h-5 w-5 text-red-400 mx-auto" />}
                     </TableCell>
                     <TableCell className="text-center">
-                      {t.beneficiaire ? <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" /> : <XCircle className="h-5 w-5 text-red-400 mx-auto" />}
+                      {tData.beneficiaire ? <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" /> : <XCircle className="h-5 w-5 text-red-400 mx-auto" />}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300" onClick={() => handleOpenEdit(t)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300" onClick={() => handleOpenEdit(tData)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={() => handleDelete(t.id_target)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:bg-red-500/10 hover:text-red-300" onClick={() => handleDelete(tData.id_target)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -270,7 +305,7 @@ export default function DataCollectionPage() {
           )}
           {!loading && filteredTargets.length === 0 && (
             <div className="flex flex-col items-center justify-center h-48 text-white/30 gap-3">
-              <p className="text-sm">Aucune cible trouvée</p>
+              <p className="text-sm">{t('emptyData')}</p>
             </div>
           )}
         </CardContent>
@@ -280,12 +315,12 @@ export default function DataCollectionPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px] bg-card border-white/20 text-white">
           <DialogHeader>
-            <DialogTitle className="text-white">{isEditing ? 'Modifier la cible' : 'Nouvelle Cible'}</DialogTitle>
+            <DialogTitle className="text-white">{isEditing ? t('editTarget') : t('newTarget')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label className="text-white">Nom</Label>
+                <Label className="text-white">{t('colLastName')}</Label>
                 <Input 
                   value={form.last_name_target} 
                   onChange={e => setForm({...form, last_name_target: e.target.value})} 
@@ -293,7 +328,7 @@ export default function DataCollectionPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-white">Prénom</Label>
+                <Label className="text-white">{t('colFirstName')}</Label>
                 <Input 
                   value={form.first_name_target} 
                   onChange={e => setForm({...form, first_name_target: e.target.value})} 
@@ -304,7 +339,7 @@ export default function DataCollectionPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label className="text-white">Âge</Label>
+                <Label className="text-white">{t('colAge')}</Label>
                 <Input 
                   type="number"
                   value={form.age} 
@@ -313,14 +348,14 @@ export default function DataCollectionPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-white">Sexe</Label>
+                <Label className="text-white">{t('colSex')}</Label>
                 <Select value={form.sex} onValueChange={v => setForm({...form, sex: v})}>
                   <SelectTrigger className="bg-muted border-white/20 text-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-white/20">
-                    <SelectItem value="M">Masculin</SelectItem>
-                    <SelectItem value="F">Féminin</SelectItem>
+                    <SelectItem value="M">{t('sexMale')}</SelectItem>
+                    <SelectItem value="F">{t('sexFemale')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -328,10 +363,10 @@ export default function DataCollectionPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label className="text-white">Campagne</Label>
+                <Label className="text-white">{t('campaignLabel')}</Label>
                 <Select value={form.id_campain} onValueChange={v => setForm({...form, id_campain: v})}>
                   <SelectTrigger className="bg-muted border-white/20 text-white">
-                    <SelectValue placeholder="Sélectionner" />
+                    <SelectValue placeholder={t('selectCampaign')} />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-white/20">
                     {campaigns.map(c => (
@@ -341,14 +376,19 @@ export default function DataCollectionPage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-white">ID Agent (CHW)</Label>
-                <Input 
-                  type="number"
-                  value={form.chw_id} 
-                  onChange={e => setForm({...form, chw_id: e.target.value})} 
-                  className="bg-muted border-white/20 text-white" 
-                  placeholder="ID de l'agent"
-                />
+                <Label className="text-white">{t('agentLabel')}</Label>
+                <Select value={form.chw_id} onValueChange={v => setForm({...form, chw_id: v})}>
+                  <SelectTrigger className="bg-muted border-white/20 text-white">
+                    <SelectValue placeholder={t('selectAgent')} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-white/20">
+                    {chws.map(c => (
+                      <SelectItem key={c.id_chw} value={String(c.id_chw)}>
+                        {c.nom}{c.prenom ? ` ${c.prenom}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -360,7 +400,7 @@ export default function DataCollectionPage() {
                   onCheckedChange={(c) => setForm({...form, vaccinate: c as boolean})}
                   className="border-white/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                 />
-                <Label htmlFor="vaccinate" className="text-white cursor-pointer">Vacciné(e)</Label>
+                <Label htmlFor="vaccinate" className="text-white cursor-pointer">{t('colVaccinated')}</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox 
@@ -369,17 +409,50 @@ export default function DataCollectionPage() {
                   onCheckedChange={(c) => setForm({...form, beneficiaire: c as boolean})}
                   className="border-white/30 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                 />
-                <Label htmlFor="beneficiaire" className="text-white cursor-pointer">Bénéficiaire</Label>
+                <Label htmlFor="beneficiaire" className="text-white cursor-pointer">{t('colBeneficiary')}</Label>
               </div>
             </div>
             
             <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setIsDialogOpen(false)}>Annuler</Button>
+              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => setIsDialogOpen(false)}>{t('cancelBtn')}</Button>
               <Button onClick={handleSubmit} disabled={submitting} className="bg-primary hover:bg-primary/90 text-white">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Enregistrer
+                {t('saveBtn')}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Dialog */}
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="sm:max-w-[420px] bg-card border-white/20 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-white">{t('qrCodeTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-white/60 text-sm">{t('qrCodeDesc')}</p>
+            <div className="flex justify-center">
+              {qrUrl && (
+                <div className="bg-white p-3 rounded-xl shadow-lg">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrUrl)}&size=200x200`}
+                    alt="QR Code"
+                    width={200}
+                    height={200}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/60 text-xs">{t('qrCodeUrlLabel')}</Label>
+              <Input
+                value={qrUrl}
+                onChange={e => setQrUrl(e.target.value)}
+                className="bg-muted border-white/20 text-white text-xs font-mono"
+              />
+            </div>
+            <p className="text-white/40 text-xs">{t('qrCodeHint')}</p>
           </div>
         </DialogContent>
       </Dialog>
