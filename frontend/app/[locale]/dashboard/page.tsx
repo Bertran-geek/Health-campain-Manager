@@ -1,15 +1,15 @@
 'use client'
 
-import { Users, Target, MapPin, AlertTriangle, TrendingUp, Calendar } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Users, Syringe, HeartHandshake, Percent, RefreshCw, Loader2 } from 'lucide-react'
+import {
+  PieChart, Pie, Cell,
+  BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts'
 import { StatCard } from '@/components/dashboard/stat-card'
-import { CoverageCard } from '@/components/dashboard/coverage-card'
-import { AlertsCard } from '@/components/dashboard/alerts-card'
-import { DailyProgressChart } from '@/components/dashboard/daily-progress-chart'
-import { CampaignCard } from '@/components/dashboard/campaign-card'
-import { mockCampaignSummary, mockCampaigns, mockAlerts } from '@/lib/mock-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -17,164 +17,224 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import api from '@/lib/api'
 import { useTranslations } from 'next-intl'
 
+interface Campaign { id_campaign: number; nom: string }
+interface Summary {
+  total: number
+  vaccinated: number
+  not_vaccinated: number
+  beneficiaries: number
+  not_beneficiaries: number
+  male: number
+  female: number
+  vaccination_rate: number
+  beneficiary_rate: number
+}
+interface LocalityRow {
+  id: number
+  name: string
+  total: number
+  vaccinated: number
+  not_vaccinated: number
+  beneficiaries: number
+  coverage: number
+}
+
+const C = {
+  primary: '#38BDF8',
+  green: '#34D399',
+  red: '#F87171',
+  amber: '#FBBF24',
+  purple: '#A78BFA',
+  grid: 'rgba(255,255,255,0.1)',
+  axis: 'rgba(255,255,255,0.5)',
+}
+const tooltipStyle = {
+  backgroundColor: '#0D1B2E',
+  border: '1px solid rgba(255,255,255,0.2)',
+  borderRadius: '8px',
+  color: '#E2EAF2',
+}
+
 export default function DashboardPage() {
-  const summary = mockCampaignSummary
   const t = useTranslations('Dashboard')
+  const tr = useTranslations('Reports')
+
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [campaignId, setCampaignId] = useState<string>('all')
+  const [summary, setSummary] = useState<Summary | null>(null)
+  const [localities, setLocalities] = useState<LocalityRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    api.get('/campaigns?page_size=100')
+      .then(r => setCampaigns(r.data.items || []))
+      .catch(console.error)
+  }, [])
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    const cq = campaignId !== 'all' ? `?campaign_id=${campaignId}` : ''
+    const lq = campaignId !== 'all' ? `?campaign_id=${campaignId}&level=region` : '?level=region'
+    try {
+      const [sumRes, locRes] = await Promise.allSettled([
+        api.get(`/reports/summary${cq}`),
+        api.get(`/reports/by-locality${lq}`),
+      ])
+      if (sumRes.status === 'fulfilled') setSummary(sumRes.value.data)
+      if (locRes.status === 'fulfilled') setLocalities(locRes.value.data.items || [])
+    } finally {
+      setLoading(false)
+    }
+  }, [campaignId])
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  const vaccPie = summary ? [
+    { name: tr('vaccinated'), value: summary.vaccinated, color: C.green },
+    { name: tr('notVaccinated'), value: summary.not_vaccinated, color: C.red },
+  ] : []
+  const benefPie = summary ? [
+    { name: tr('beneficiary'), value: summary.beneficiaries, color: C.primary },
+    { name: tr('notBeneficiary'), value: summary.not_beneficiaries, color: C.amber },
+  ] : []
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">{t('title')}</h2>
-          <p className="text-muted-foreground">
-            {summary.campaign.name} - {t('daySuffix', {day: Math.ceil((new Date().getTime() - new Date(summary.campaign.startDate).getTime()) / (1000 * 60 * 60 * 24))})}
-          </p>
+          <h2 className="text-2xl font-bold text-white">{t('title')}</h2>
+          <p className="text-white/60 text-sm mt-1">{tr('subtitle')}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Select defaultValue="camp1">
-            <SelectTrigger className="w-[200px]">
+        <div className="flex items-center gap-2">
+          <Select value={campaignId} onValueChange={setCampaignId}>
+            <SelectTrigger className="w-[220px] bg-muted border-white/20 text-white">
               <SelectValue placeholder={t('selectCampaign')} />
             </SelectTrigger>
-            <SelectContent>
-              {mockCampaigns.map((campaign) => (
-                <SelectItem key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </SelectItem>
+            <SelectContent className="bg-card border-white/20">
+              <SelectItem value="all">{tr('allCampaigns')}</SelectItem>
+              {campaigns.map((c) => (
+                <SelectItem key={c.id_campaign} value={String(c.id_campaign)}>{c.nom}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            <Calendar className="mr-2 h-4 w-4" />
-            {t('exportReport')}
+          <Button variant="outline" size="icon" onClick={fetchData} className="border-white/20 text-white hover:bg-white/10">
+            <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title={t('totalReached')}
-          value={summary.coverage.totalReached.toLocaleString()}
-          description={t('childrenVaccinated')}
-          icon={Users}
-          trend={{ value: 12.5, isPositive: true }}
-          variant="primary"
-        />
-        <StatCard
-          title={t('coverageRate')}
-          value={`${summary.coverage.coveragePercentage.toFixed(1)}%`}
-          description={t('targetPopulation')}
-          icon={Target}
-          trend={{ value: 8.2, isPositive: true }}
-          variant="success"
-        />
-        <StatCard
-          title={t('activeTeams')}
-          value={`${summary.teamsActive}/${summary.teamsTotal}`}
-          description={t('teamsDeployed')}
-          icon={MapPin}
-          variant="default"
-        />
-        <StatCard
-          title={t('activeAlerts')}
-          value={summary.alertsNew}
-          description={t('criticalCount', {count: summary.alertsCritical})}
-          icon={AlertTriangle}
-          variant={summary.alertsCritical > 0 ? 'destructive' : 'warning'}
-        />
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center h-64 gap-3 text-white/50">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <span>{tr('loading')}</span>
+        </div>
+      ) : (
+        <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard title={tr('totalTargets')} value={(summary?.total ?? 0).toLocaleString()} icon={Users} variant="primary" />
+            <StatCard title={tr('vaccinated')} value={(summary?.vaccinated ?? 0).toLocaleString()} description={`${summary?.vaccination_rate ?? 0}%`} icon={Syringe} variant="success" />
+            <StatCard title={tr('beneficiaries')} value={(summary?.beneficiaries ?? 0).toLocaleString()} description={`${summary?.beneficiary_rate ?? 0}%`} icon={HeartHandshake} variant="warning" />
+            <StatCard title={tr('coverageRate')} value={`${summary?.vaccination_rate ?? 0}%`} icon={Percent} variant="default" />
+          </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Coverage and Progress */}
-        <div className="lg:col-span-2 space-y-6">
-          <DailyProgressChart data={summary.dailyProgress} />
-          
-          {/* Quick Stats Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-foreground">{summary.villagesCovered}</div>
-                <div className="text-sm text-muted-foreground">{t('villagesCovered')}</div>
-                <div className="text-xs text-primary mt-1">
-                  {t('ofTotal', {total: summary.villagesTotal})}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-foreground">{summary.agentsActive}</div>
-                <div className="text-sm text-muted-foreground">{t('agentsActive')}</div>
-                <div className="text-xs text-success mt-1">
-                  {t('checkedIn', {pct: ((summary.agentsActive / summary.agentsTotal) * 100).toFixed(0)})}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-foreground">
-                  {((summary.dailyProgress[summary.dailyProgress.length - 1]?.reached || 0) / 1000).toFixed(0)}K
-                </div>
-                <div className="text-sm text-muted-foreground">{t('todaysProgress')}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {t('targetValue', {val: ((summary.dailyProgress[0]?.target || 0) / 1000).toFixed(0)})}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="text-2xl font-bold text-foreground">
-                  {(summary.campaign.budgetAllocated / 1000).toFixed(0)}K
-                </div>
-                <div className="text-sm text-muted-foreground">{t('budget')}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {t('allocatedForCampaign')}
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <DonutCard title={tr('vaccinationStatus')} data={vaccPie} />
+            <DonutCard title={tr('beneficiaryStatus')} data={benefPie} />
+            <Card className="border-white/20 bg-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-white">{tr('sexDistribution')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4 pt-4">
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-white/70">{tr('male')}</span>
+                      <span className="text-white font-medium">{(summary?.male ?? 0).toLocaleString()}</span>
+                    </div>
+                    <div className="h-3 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${summary && summary.total ? (summary.male / summary.total) * 100 : 0}%`, backgroundColor: C.primary }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-white/70">{tr('female')}</span>
+                      <span className="text-white font-medium">{(summary?.female ?? 0).toLocaleString()}</span>
+                    </div>
+                    <div className="h-3 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${summary && summary.total ? (summary.female / summary.total) * 100 : 0}%`, backgroundColor: C.purple }} />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
-        </div>
 
-        {/* Right Column - Coverage Details */}
-        <div className="space-y-6">
-          <CoverageCard coverage={summary.coverage} />
-        </div>
-      </div>
-
-      {/* Bottom Section - Alerts and Campaigns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AlertsCard alerts={mockAlerts} />
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-lg font-semibold">{t('activeCampaigns')}</CardTitle>
-            <Button variant="ghost" size="sm" className="text-primary hover:text-primary">
-              {t('viewAll')}
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {mockCampaigns.filter(c => c.status === 'in_progress' || c.status === 'approved').slice(0, 3).map((campaign) => (
-              <div
-                key={campaign.id}
-                className="flex items-center justify-between p-3 rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer"
-              >
-                <div className="space-y-1">
-                  <div className="font-medium text-foreground">{campaign.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {new Date(campaign.startDate).toLocaleDateString()} - {new Date(campaign.endDate).toLocaleDateString()}
-                  </div>
-                </div>
-                <Badge className={`${campaign.status === 'in_progress' ? 'bg-success/20 text-success' : 'bg-info/20 text-info'}`}>
-                  {campaign.status.replace('_', ' ')}
-                </Badge>
+          {/* Locality bar chart */}
+          <Card className="border-white/20 bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-semibold text-white">{tr('byLocality')} — {tr('levelRegion')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[320px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={localities} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={C.grid} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fill: C.axis, fontSize: 12 }} />
+                    <YAxis tick={{ fill: C.axis, fontSize: 12 }} />
+                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                    <Legend wrapperStyle={{ color: C.axis }} />
+                    <Bar dataKey="vaccinated" name={tr('vaccinated')} fill={C.green} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="not_vaccinated" name={tr('notVaccinated')} fill={C.red} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="beneficiaries" name={tr('beneficiaries')} fill={C.primary} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
+  )
+}
+
+function DonutCard({ title, data }: { title: string; data: { name: string; value: number; color: string }[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  return (
+    <Card className="border-white/20 bg-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold text-white">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[200px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                {data.map((d, i) => <Cell key={i} fill={d.color} stroke="transparent" />)}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex flex-col gap-2 mt-2">
+          {data.map((d, i) => (
+            <div key={i} className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }} />
+                <span className="text-white/70">{d.name}</span>
+              </div>
+              <span className="text-white font-medium">
+                {d.value.toLocaleString()} ({total ? ((d.value / total) * 100).toFixed(1) : 0}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

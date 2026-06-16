@@ -16,6 +16,25 @@ from app.core.database import engine, Base
 from app.api.router import api_router
 
 
+# Weekly report scheduler
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+
+def _weekly_report_job():
+    """Background job to send weekly report emails."""
+    from app.core.database import SessionLocal
+    from app.services.email_service import send_weekly_report_email_sync
+    db = SessionLocal()
+    try:
+        send_weekly_report_email_sync(db)
+    finally:
+        db.close()
+
+
+scheduler = BackgroundScheduler()
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG if settings.DEBUG else logging.INFO,
@@ -34,6 +53,21 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Health Campaign Manager API...")
     logger.info(f"Debug mode: {settings.DEBUG}")
     
+    # Start weekly report scheduler
+    if settings.SMTP_USER and settings.SMTP_PASSWORD:
+        day_map = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
+        day_str = day_map.get(settings.WEEKLY_REPORT_DAY, "mon")
+        scheduler.add_job(
+            _weekly_report_job,
+            CronTrigger(day_of_week=day_str, hour=settings.WEEKLY_REPORT_HOUR, minute=0),
+            id="weekly_report",
+            replace_existing=True,
+        )
+        scheduler.start()
+        logger.info(f"Weekly report scheduler started (day={day_str}, hour={settings.WEEKLY_REPORT_HOUR})")
+    else:
+        logger.info("SMTP not configured, weekly report scheduler disabled")
+    
     # Create database tables if they don't exist
     # Note: In production, use Alembic migrations instead
     # Base.metadata.create_all(bind=engine)
@@ -41,6 +75,8 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
     logger.info("Shutting down Health Campaign Manager API...")
 
 

@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Activity,
   FlaskConical,
+  Mail,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
@@ -34,6 +35,7 @@ const NAV_HREFS = [
   { key: 'coverageMap', href: '/dashboard/map', icon: Map },
   { key: 'alerts', href: '/dashboard/alerts', icon: Bell },
   { key: 'reports', href: '/dashboard/reports', icon: FileText },
+  { key: 'email', href: '/dashboard/email', icon: Mail },
 ]
 
 const BOTTOM_HREFS = [

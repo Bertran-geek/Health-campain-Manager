@@ -9,8 +9,10 @@ import {
   Loader2,
   RefreshCw,
   CheckCircle2,
-  XCircle,
-  QrCode
+  Circle,
+  QrCode,
+  Syringe,
+  HandHelping
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -201,6 +203,24 @@ export default function TargetsPage() {
     }
   }
 
+  const handleToggleVaccinate = async (tData: Target) => {
+    try {
+      await api.put(`/targets/${tData.id_target}`, { vaccinate: !tData.vaccinate })
+      fetchData()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: t('error'), text: t('defaultError'), ...SWL })
+    }
+  }
+
+  const handleToggleBeneficiaire = async (tData: Target) => {
+    try {
+      await api.put(`/targets/${tData.id_target}`, { beneficiaire: !tData.beneficiaire })
+      fetchData()
+    } catch (err: any) {
+      Swal.fire({ icon: 'error', title: t('error'), text: t('defaultError'), ...SWL })
+    }
+  }
+
   const filteredTargets = targets.filter(t => 
     (t.first_name_target?.toLowerCase() || '').includes(search.toLowerCase()) ||
     (t.last_name_target?.toLowerCase() || '').includes(search.toLowerCase())
@@ -272,7 +292,7 @@ export default function TargetsPage() {
                   <TableHead className="text-white font-medium">{t('colSex')}</TableHead>
                   <TableHead className="text-white font-medium text-center">{t('colVaccinated')}</TableHead>
                   <TableHead className="text-white font-medium text-center">{t('colBeneficiary')}</TableHead>
-                  <TableHead className="text-white font-medium text-center w-[100px]">{t('colActions')}</TableHead>
+                  <TableHead className="text-white font-medium text-center w-[140px]">{t('colActions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -283,13 +303,25 @@ export default function TargetsPage() {
                     <TableCell className="text-white">{tData.age ?? '-'}</TableCell>
                     <TableCell className="text-white">{tData.sex === 'M' ? t('sexMale') : tData.sex === 'F' ? t('sexFemale') : '-'}</TableCell>
                     <TableCell className="text-center">
-                      {tData.vaccinate ? <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" /> : <XCircle className="h-5 w-5 text-red-400 mx-auto" />}
+                      {tData.vaccinate
+                        ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />{t('validated')}</span>
+                        : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/40"><Circle className="h-3.5 w-3.5" />{t('notValidated')}</span>
+                      }
                     </TableCell>
                     <TableCell className="text-center">
-                      {tData.beneficiaire ? <CheckCircle2 className="h-5 w-5 text-emerald-400 mx-auto" /> : <XCircle className="h-5 w-5 text-red-400 mx-auto" />}
+                      {tData.beneficiaire
+                        ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" />{t('validated')}</span>
+                        : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white/40"><Circle className="h-3.5 w-3.5" />{t('notValidated')}</span>
+                      }
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
+                        <Button variant="ghost" size="icon" className={`h-8 w-8 ${tData.vaccinate ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-white/40 hover:bg-white/10 hover:text-white/60'}`} onClick={() => handleToggleVaccinate(tData)} title={t('toggleVaccinate')}>
+                          <Syringe className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className={`h-8 w-8 ${tData.beneficiaire ? 'text-emerald-400 hover:bg-emerald-500/10' : 'text-white/40 hover:bg-white/10 hover:text-white/60'}`} onClick={() => handleToggleBeneficiaire(tData)} title={t('toggleBeneficiary')}>
+                          <HandHelping className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300" onClick={() => handleOpenEdit(tData)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
