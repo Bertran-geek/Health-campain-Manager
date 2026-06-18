@@ -5,6 +5,7 @@ import { ChevronRight, ChevronDown, MapPin, Building2, Home, Plus, Loader2, Sear
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { geographyService } from '@/lib/services'
 import api from '@/lib/api'
 import Swal from 'sweetalert2'
 import { cn } from '@/lib/utils'
@@ -112,7 +113,7 @@ export default function HierarchyPage() {
   const fetchRoot = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/regions?page_size=100')
+      const res = await geographyService.listRegions()
       const items = res.data.items || []
       setRegions(items.map((r: any) => ({
         id: r.id_region,

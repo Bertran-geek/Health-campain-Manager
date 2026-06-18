@@ -39,6 +39,14 @@ services:
       - BACKEND_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
       - ENVIRONMENT=production
       - DEBUG=false
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=
+      - SMTP_PASSWORD=
+      - SMTP_FROM_EMAIL=
+      - SMTP_USE_TLS=true
+      - WEEKLY_REPORT_DAY=1
+      - WEEKLY_REPORT_HOUR=8
     depends_on:
       db:
         condition: service_healthy

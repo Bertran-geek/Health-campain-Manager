@@ -5,7 +5,7 @@ Provides versioned API endpoints under /api/v1.
 
 from fastapi import APIRouter
 
-from app.api.routes import auth, users, geography, campaigns, audit, targets
+from app.api.routes import auth, users, geography, campaigns, audit, targets, reports, emails
 
 
 # Main API router with version prefix
@@ -18,3 +18,5 @@ api_router.include_router(geography.router)
 api_router.include_router(campaigns.router)
 api_router.include_router(audit.router)
 api_router.include_router(targets.router)
+api_router.include_router(reports.router)
+api_router.include_router(emails.router)

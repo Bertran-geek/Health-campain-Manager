@@ -11,13 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import api from '@/lib/api'
+import { moleculeService } from '@/lib/services'
+import type { Molecule } from '@/lib/services'
 import Swal from 'sweetalert2'
 import { useTranslations } from 'next-intl'
 
-interface Molecule {
-  id_molecule: number; nom: string; code: string; description?: string; nombre_dose_standard: number
-}
+// Type imported from services
 
 const SWL = { background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' }
 const EMPTY = { code: '', nom: '', description: '', nombre_dose_standard: 1 }
@@ -38,7 +37,7 @@ export default function MoleculesPage() {
 
   const fetchMolecules = useCallback(async () => {
     setLoading(true)
-    try { const r = await api.get('/molecules'); setMolecules(r.data) }
+    try { const r = await moleculeService.list(); setMolecules(r.data) }
     catch { Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'), ...SWL }) }
     finally { setLoading(false) }
   }, [])
@@ -55,7 +54,7 @@ export default function MoleculesPage() {
     }
     setSub(true)
     try {
-      await api.post('/molecules', { ...form, nombre_dose_standard: Number(form.nombre_dose_standard) })
+      await moleculeService.create({ ...form, nombre_dose_standard: Number(form.nombre_dose_standard) })
       Swal.fire({ icon: 'success', title: t('moleculeCreated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setForm({ ...EMPTY }); setCreateOpen(false); fetchMolecules()
     } catch (err: any) {
@@ -72,7 +71,7 @@ export default function MoleculesPage() {
     if (!editM) return
     setEditSub(true)
     try {
-      await api.put(`/molecules/${editM.id_molecule}`, { ...editForm, nombre_dose_standard: Number(editForm.nombre_dose_standard) })
+      await moleculeService.update(editM.id_molecule, { ...editForm, nombre_dose_standard: Number(editForm.nombre_dose_standard) })
       Swal.fire({ icon: 'success', title: t('moleculeUpdated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setEditM(null); fetchMolecules()
     } catch (err: any) {
@@ -88,7 +87,7 @@ export default function MoleculesPage() {
     })
     if (!res.isConfirmed) return
     try {
-      await api.delete(`/molecules/${m.id_molecule}`)
+      await moleculeService.delete(m.id_molecule)
       Swal.fire({ icon: 'success', title: t('moleculeDeleted'), timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       fetchMolecules()
     } catch (err: any) {

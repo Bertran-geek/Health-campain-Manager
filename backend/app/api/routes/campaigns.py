@@ -34,6 +34,7 @@ from app.schemas.campaign import (
     MoleculeResponse,
 )
 from app.services.audit_service import create_audit_log
+from app.services.email_service import send_campaign_creation_email_sync
 
 
 router = APIRouter(tags=["Campaigns"])
@@ -344,6 +345,9 @@ def create_campaign(
         record_id=campaign.id_campaign,
         new_value={"nom": campaign.nom, "code": campaign.code},
     )
+    
+    # Send email notification to all active users
+    send_campaign_creation_email_sync(db, campaign, current_user)
     
     return get_campaign(campaign.id_campaign, db, current_user)
 

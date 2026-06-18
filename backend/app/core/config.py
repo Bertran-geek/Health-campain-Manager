@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     APP_NAME: str = "Health Campaign Manager API"
     APP_VERSION: str = "1.0.0"
     
+    # Email / SMTP
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_USE_TLS: bool = True
+    WEEKLY_REPORT_DAY: int = 1  # 0=Monday, 6=Sunday
+    WEEKLY_REPORT_HOUR: int = 8  # 24h format
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins from JSON string to list."""
