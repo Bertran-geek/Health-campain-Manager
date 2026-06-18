@@ -18,29 +18,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import api from '@/lib/api'
+import { campaignService, reportService } from '@/lib/services'
+import type { Campaign, Summary, LocalityRow } from '@/lib/services'
 import { useTranslations } from 'next-intl'
 
-interface Campaign { id_campaign: number; nom: string }
-interface Summary {
-  total: number
-  vaccinated: number
-  not_vaccinated: number
-  beneficiaries: number
-  not_beneficiaries: number
-  male: number
-  female: number
-  vaccination_rate: number
-  beneficiary_rate: number
-}
-interface LocalityRow {
-  id: number
-  name: string
-  total: number
-  vaccinated: number
-  not_vaccinated: number
-  beneficiaries: number
-  coverage: number
-}
+// Types imported from services
 
 const C = {
   primary: '#38BDF8',
@@ -69,19 +51,18 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get('/campaigns?page_size=100')
+    campaignService.list()
       .then(r => setCampaigns(r.data.items || []))
       .catch(console.error)
   }, [])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const cq = campaignId !== 'all' ? `?campaign_id=${campaignId}` : ''
-    const lq = campaignId !== 'all' ? `?campaign_id=${campaignId}&level=region` : '?level=region'
+    const cid = campaignId !== 'all' ? parseInt(campaignId) : undefined
     try {
       const [sumRes, locRes] = await Promise.allSettled([
-        api.get(`/reports/summary${cq}`),
-        api.get(`/reports/by-locality${lq}`),
+        reportService.summary(cid),
+        reportService.byLocality('region', cid),
       ])
       if (sumRes.status === 'fulfilled') setSummary(sumRes.value.data)
       if (locRes.status === 'fulfilled') setLocalities(locRes.value.data.items || [])

@@ -1,155 +1,318 @@
 # Health Campaign Manager
 
-A comprehensive health campaign management system with a FastAPI backend and Next.js frontend.
+Health Campaign Manager est une plateforme web de gestion de campagnes de sante publique. Elle permet la planification, l'execution et le suivi en temps reel des campagnes de vaccination, de depistage, de supplementation, de sensibilisation et de traitement. Le systeme assure le suivi des agents de sante, des cibles, de la couverture geographique et genere des rapports automatiques par email.
 
-Health Campaign Manager is a web platform that streamlines the planning, execution, and monitoring of mass health campaigns. It enables real-time tracking of activities, field agents, targets, and coverage across all administrative levels, providing dashboards, reports, and insights to improve campaign performance and decision-making.
+---
 
-##  Project Structure
+## Architecture
+
+Le systeme suit une architecture trois tiers conteneurisee avec Docker.
+
+```
+Navigateur (React/Next.js)
+      |
+      v
+  Nginx / Next.js (port 3000)
+      |
+      v
+  FastAPI Backend (port 8000)
+      |
+      v
+  MySQL 8 (port 3307)
+```
+
+### Structure du projet
 
 ```
 HEALTH_CAMPAIGN_MANAGER/
-├── backend/                 # FastAPI Python backend
+├── backend/                    # API FastAPI Python
 │   ├── app/
-│   │   ├── api/            # API routes and dependencies
-│   │   ├── core/           # Config, database, security
-│   │   ├── models/         # SQLAlchemy ORM models
-│   │   ├── schemas/        # Pydantic validation schemas
-│   │   ├── services/       # Business logic services
-│   │   └── main.py         # Application entry point
-│   ├── requirements.txt    # Python dependencies
-│   └── .env               # Environment variables
-├── frontend/               # Next.js React frontend
-│   ├── app/               # Next.js App Router pages
-│   ├── components/        # React components
-│   ├── hooks/             # Custom hooks
-│   ├── lib/               # Utilities
-│   └── package.json       # Node dependencies
-├── docs/                   # Documentation
-│   ├── DATABASE.md        # Database documentation
-│   └── CLASS_DIAGRAM.md   # UML class diagrams
-└── README.md              # This file
+│   │   ├── api/
+│   │   │   ├── routes/        # Endpoints REST (auth, users, campaigns, targets, emails, etc.)
+│   │   │   └── router.py      # Routeur principal avec prefixe /api/v1
+│   │   ├── core/              # Configuration, base de donnees, securite JWT
+│   │   ├── models/            # Modeles ORM SQLAlchemy
+│   │   ├── schemas/           # Schemas de validation Pydantic
+│   │   ├── services/          # Logique metier (audit, email)
+│   │   ├── templates/emails/  # Templates HTML Jinja2 pour les emails
+│   │   └── main.py            # Point d'entree FastAPI (lifespan, middleware, CORS)
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── .env
+├── frontend/                   # Interface Next.js React
+│   ├── app/[locale]/dashboard/ # Pages du tableau de bord
+│   ├── components/            # Composants React (sidebar, UI)
+│   ├── lib/
+│   │   ├── api.ts             # Client Axios avec intercepteurs JWT
+│   │   └── services.ts        # Couche service (appels API separes des pages)
+│   ├── messages/              # Fichiers de traduction en.json, fr.json
+│   ├── package.json
+│   └── Dockerfile
+├── docs/                       # Documentation technique
+│   ├── DATABASE.md
+│   └── CLASS_DIAGRAM.md
+├── docker-compose.yml          # Orchestration des conteneurs
+└── README.md
 ```
 
-##  Quick Start
+---
 
-### Option 1: Docker (Recommended)
+## Demarrage rapide
 
-Prerequisites: **Docker** + **Docker Compose**
+### Option 1 : Docker (recommande)
+
+Prerequis : Docker et Docker Compose installes.
 
 ```bash
-# Start everything (MySQL + Backend + Frontend)
-docker-compose up --build
+# Construire et demarrer tous les services
+docker compose up --build
 
-# In development mode with hot reload
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# En mode developpement avec hot reload
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
-| Service                     |          URL                    |
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000/api/v1 |
+| Swagger (API Docs) | http://localhost:8000/api/v1/docs |
+| Adminer (BDD) | http://localhost:8080 |
+| MySQL | localhost:3307 |
 
-| Frontend                    | http://localhost:3000 |
-| Backend API                 | http://localhost:8000/api/v1 |
-| API Docs (Swagger)          | http://localhost:8000/api/v1/docs |
-| Adminer (DB GUI)            | http://localhost:8080 |
-| MySQL (direct)              | localhost:3307 |
+Identifiants par defaut en Docker :
+- Utilisateur : health_user / Mot de passe : health_pass
+- Root : root / Mot de passe : rootpassword
 
-Default database credentials in Docker:
-- **User**: `health_user` / **Password**: `health_pass`
-- **Root**: `root` / **Password**: `rootpassword`
+### Option 2 : Installation manuelle
 
-### Option 2: Manual Setup
+Prerequis : Python 3.10+, Node.js 18+, MySQL/MariaDB, pnpm.
 
-#### Prerequisites
+#### 1. Base de donnees
 
-- **Python 3.10+** for backend
-- **Node.js 18+** for frontend
-- **MySQL/MariaDB** (via WAMP Server)
-- **pnpm** (recommended for frontend)
+1. Demarrer le serveur MySQL/MariaDB
+2. Creer la base de donnees avec le script SQL (voir docs/schema.sql)
 
-#### 1. Database Setup
-
-1. Start WAMP Server
-2. Open phpMyAdmin at http://localhost/phpmyadmin
-3. Create the database and tables using the SQL script (see docs/schema.sql)
-
-#### 2. Backend Setup
+#### 2. Backend
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
-venv\Scripts\activate  # Windows
-
-# Install dependencies
+venv\Scripts\activate        # Windows
 pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Run the server
+cp .env.example .env        # Configurer les identifiants BDD
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-API Documentation: http://localhost:8000/api/v1/docs
-
-#### 3. Frontend Setup
+#### 3. Frontend
 
 ```bash
 cd frontend
-
-# Install dependencies
 pnpm install
-
-# Start development server
 pnpm dev
 ```
 
-Frontend: http://localhost:3000
+---
 
-##  Documentation
+## Fonctionnalites
 
-- **API Docs**: http://localhost:8000/api/v1/docs (Swagger UI)
-- **Database**: [docs/DATABASE.md](docs/DATABASE.md)
-- **Class Diagram**: [docs/CLASS_DIAGRAM.md](docs/CLASS_DIAGRAM.md)
+### Gestion des campagnes
 
-##  Security Features
+- Creation, modification et suppression de campagnes de sante
+- Cinq types de campagnes : Vaccination, Depistage, Supplementation, Sensibilisation, Traitement
+- Attribution de zones geographiques (regions, departements) et de molecules a chaque campagne
+- Filtrage par type et recherche textuelle
+- Indicateurs de statut : en cours, actif, inactif
 
-- **JWT Authentication** with access and refresh tokens
-- **Role-Based Access Control (RBAC)** with 6 hierarchical roles
-- **Password Hashing** using bcrypt
-- **Audit Logging** for all data modifications
-- **CORS Protection** configured for frontend origin
+### Gestion des cibles
 
-##  User Roles
+- Enregistrement des cibles (nom, prenom, age, sexe, campagne, ASC)
+- Marquage vaccinate/beneficiaire avec boutons de bascule dans la liste
+- Badges visuels : vert pour valide, gris pour non valide
+- QR Code d'acces au formulaire d'enregistrement public
+- Recherche par nom
 
-| Role | Description | Access Level |
-|------|-------------|--------------|
-| SUPER_ADMIN | Full system access | All |
-| NATIONAL_MANAGER | National level management | National + below |
-| REGION_MANAGER | Regional management | Region + below |
-| DPT_MANAGER | Department management | Department + below |
-| PHC_MANAGER | PHC management | PHC + below |
-| CHW | Community Health Worker | Own data only |
+### Gestion des agents de sante
 
-##  Geographic Hierarchy
+- Creation et gestion des comptes utilisateurs avec roles et scopes geographiques
+- Activation/desactivation des comptes
+- Attribution de roles hierarchiques et de zones d'intervention
+- Recherche et filtrage par statut
+
+### Tableau de bord
+
+- Statistiques globales : total cibles, vaccines, beneficiaires, taux de couverture
+- Graphiques : statut vaccinal (donut), statut beneficiaire (donut), repartition par sexe
+- Diagramme en barres par localite (region)
+- Filtrage par campagne
+
+### Systeme de messagerie electronique
+
+- Envoi automatique d'un email de notification a la creation d'une campagne
+- Rapports hebdomadaires automatiques envoyes a tous les utilisateurs actifs
+- Configuration SMTP depuis l'interface (hote, port, identifiants, email expediteur)
+- Envoi d'emails de test pour valider la configuration
+- Declenchement manuel du rapport hebdomadaire
+- Planification configurable : jour et heure du rapport hebdomadaire
+- Templates HTML professionnels pour les emails (Jinja2)
+
+### Hierarchie geographique
+
+- Gestion des regions, departements, centres de sante primaires (PHC) et agents de sante communautaires (ASC)
+- Navigation hierarchique dans l'interface
+
+### Molecules
+
+- Gestion des molecules et vaccins utilises dans les campagnes
+- Creation depuis le formulaire de campagne
+
+### Audit et journalisation
+
+- Journal automatique de toutes les modifications de donnees (creation, modification, suppression)
+- Enregistrement de l'utilisateur, de la table, de l'identifiant et des anciennes/nouvelles valeurs
+
+### Internationalisation
+
+- Interface disponible en francais et en anglais
+- Traductions gerees via next-intl avec fichiers JSON dedies
+
+---
+
+## Securite
+
+### Authentification
+
+- Authentification par JWT (JSON Web Tokens) avec tokens d'acces et de rafraichissement
+- Hashage des mots de passe avec bcrypt via passlib
+- Expiration automatique des sessions avec notification utilisateur
+- Les tokens sont stockes dans le localStorage du navigateur et transmis via le header Authorization
+
+### Controle d'acces base sur les roles (RBAC)
+
+Le systeme implemente un controle d'acces hierarchique a six niveaux :
+
+| Role | Description | Niveau d'acces |
+|------|-------------|----------------|
+| SUPER_ADMIN | Acces complet au systeme | Tout |
+| NATIONAL_MANAGER | Gestion nationale | National et inferieur |
+| REGION_MANAGER | Gestion regionale | Region et inferieur |
+| DPT_MANAGER | Gestion departementale | Departement et inferieur |
+| PHC_MANAGER | Gestion du centre de sante | PHC et inferieur |
+| CHW | Agent de sante communautaire | Donnees propres uniquement |
+
+Chaque utilisateur se voit attribuer un ou plusieurs roles et un scope geographique qui determine les donnees auxquelles il a acces.
+
+### Protection CORS
+
+- Configuration CORS restrictive limitant les requetes au domaine du frontend
+- Les requetes cross-origin non autorisees sont rejetees
+
+### Journal d'audit
+
+- Toute modification de donnee (creation, mise a jour, suppression) est enregistree dans la table audit_log
+- Chaque entree contient : l'utilisateur, l'action, la table concernee, l'identifiant de l'enregistrement, les anciennes et nouvelles valeurs
+- Permet la tracabilite complete des operations
+
+### Securite des emails
+
+- Les identifiants SMTP sont stockes dans les variables d'environnement du backend
+- La configuration SMTP via l'API est reservee aux roles NATIONAL_MANAGER et SUPER_ADMIN
+- Les mots de passe SMTP ne sont jamais renvoyes par l'API (champ masque)
+
+---
+
+## API REST
+
+Tous les endpoints sont accessibles sous le prefixe /api/v1.
+
+| Endpoint | Methode | Description |
+|----------|---------|-------------|
+| /auth/login | POST | Authentification, retourne un JWT |
+| /auth/refresh | POST | Rafraichissement du token |
+| /users | GET/POST | Liste et creation d'utilisateurs |
+| /users/{id} | GET/PUT/DELETE | Lecture, modification, suppression |
+| /users/roles | GET | Liste des roles disponibles |
+| /campaigns | GET/POST | Liste et creation de campagnes |
+| /campaigns/{id} | GET/PUT/DELETE | Detail, modification, suppression |
+| /molecules | GET/POST | Liste et creation de molecules |
+| /targets | GET/POST | Liste et creation de cibles |
+| /targets/{id} | GET/PUT/DELETE | Detail, modification, suppression |
+| /regions | GET | Liste des regions |
+| /departements | GET | Liste des departements |
+| /chws | GET | Liste des agents de sante communautaires |
+| /reports/summary | GET | Resume statistique global |
+| /reports/by-locality | GET | Statistiques par localite |
+| /emails/config | GET/PUT | Configuration SMTP |
+| /emails/test | POST | Envoi d'un email de test |
+| /emails/weekly-report | POST | Declenchement manuel du rapport hebdomadaire |
+| /audit | GET | Journal d'audit |
+
+Documentation interactive complete : http://localhost:8000/api/v1/docs
+
+---
+
+## Configuration SMTP
+
+Le systeme de messagerie requiert une configuration SMTP pour fonctionner. Pour Gmail :
+
+1. Activer la validation en deux etapes sur le compte Google
+2. Creer un mot de passe d'application sur myaccount.google.com/apppasswords
+3. Configurer dans l'interface Email du tableau de bord ou via les variables d'environnement Docker
+
+Variables d'environnement Docker :
+
+| Variable | Description | Defaut |
+|----------|-------------|--------|
+| SMTP_HOST | Serveur SMTP | smtp.gmail.com |
+| SMTP_PORT | Port SMTP | 587 |
+| SMTP_USER | Nom d'utilisateur SMTP | (vide) |
+| SMTP_PASSWORD | Mot de passe d'application | (vide) |
+| SMTP_FROM_EMAIL | Email expediteur | (vide) |
+| SMTP_USE_TLS | Utiliser TLS | true |
+| WEEKLY_REPORT_DAY | Jour du rapport (0=lundi) | 1 |
+| WEEKLY_REPORT_HOUR | Heure du rapport (0-23) | 8 |
+
+---
+
+## Couche service frontend
+
+Les appels API sont centralises dans le fichier frontend/lib/services.ts, separe des composants de page. Cette couche fournit :
+
+- targetService : operations CRUD et bascule vaccinate/beneficiaire
+- campaignService : operations CRUD sur les campagnes
+- moleculeService : liste et creation de molecules
+- geographyService : regions, departements, ASC
+- userService : gestion des utilisateurs et roles
+- reportService : resumes statistiques et donnees par localite
+- emailService : configuration SMTP, test, rapport hebdomadaire
+
+Tous les types TypeScript sont exportes depuis ce fichier pour assurer la coherence.
+
+---
+
+## Types de campagnes
+
+| Code | Description |
+|------|-------------|
+| VACCINATION | Campagnes de vaccination |
+| DEPISTAGE | Campagnes de depistage |
+| SUPPLEMENTATION | Campagnes de supplementation |
+| SENSIBILISATION | Campagnes de sensibilisation |
+| TRAITEMENT | Campagnes de traitement |
+
+---
+
+## Hierarchie geographique
 
 ```
 Region
   └── Departement
-        └── PHC (Primary Health Center)
-              └── CHW (Community Health Worker)
+        └── PHC (Centre de Sante Primaire)
+              └── CHW (Agent de Sante Communautaire)
 ```
 
-##  Campaign Types
+---
 
-- **VACCINATION** - Vaccination campaigns
-- **DEPISTAGE** - Screening campaigns
-- **SUPPLEMENTATION** - Supplementation campaigns
-- **SENSIBILISATION** - Awareness campaigns
-- **TRAITEMENT** - Treatment campaigns
-
-##  Tech Stack
+## Stack technique
 
 ### Backend
 - FastAPI 0.115.0
@@ -158,6 +321,9 @@ Region
 - Pydantic v2
 - python-jose (JWT)
 - passlib (bcrypt)
+- aiosmtplib (envoi d'emails asynchrone)
+- Jinja2 (templates d'emails HTML)
+- APScheduler (planification des rapports hebdomadaires)
 
 ### Frontend
 - Next.js 16
@@ -165,7 +331,18 @@ Region
 - TailwindCSS v4
 - shadcn/ui
 - Lucide Icons
+- next-intl (internationalisation)
+- Recharts (graphiques)
+- Axios (client HTTP)
+- SweetAlert2 (notifications)
 
-##  License
+### Infrastructure
+- Docker + Docker Compose
+- MySQL 8
+- Adminer (administration BDD)
+
+---
+
+## Licence
 
 MIT License

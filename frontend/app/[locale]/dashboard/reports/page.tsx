@@ -21,30 +21,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import api from '@/lib/api'
+import { campaignService, reportService } from '@/lib/services'
+import type { Campaign, Summary, LocalityRow } from '@/lib/services'
 import { useTranslations } from 'next-intl'
 
-interface Campaign { id_campaign: number; nom: string }
-interface Summary {
-  total: number
-  vaccinated: number
-  not_vaccinated: number
-  beneficiaries: number
-  not_beneficiaries: number
-  male: number
-  female: number
-  vaccination_rate: number
-  beneficiary_rate: number
-}
-interface LocalityRow {
-  id: number
-  name: string
-  total: number
-  vaccinated: number
-  not_vaccinated: number
-  beneficiaries: number
-  not_beneficiaries: number
-  coverage: number
-}
 interface CampaignRow extends LocalityRow { type: string }
 interface AgeRow {
   age_group: string
@@ -86,21 +66,20 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get('/campaigns?page_size=100')
+    campaignService.list()
       .then(r => setCampaigns(r.data.items || []))
       .catch(console.error)
   }, [])
 
   const fetchReports = useCallback(async () => {
     setLoading(true)
-    const cq = campaignId !== 'all' ? `?campaign_id=${campaignId}` : ''
-    const cqLevel = campaignId !== 'all' ? `?campaign_id=${campaignId}&level=${level}` : `?level=${level}`
+    const cid = campaignId !== 'all' ? parseInt(campaignId) : undefined
     try {
       const [sumRes, locRes, campRes, ageRes] = await Promise.allSettled([
-        api.get(`/reports/summary${cq}`),
-        api.get(`/reports/by-locality${cqLevel}`),
-        api.get('/reports/by-campaign'),
-        api.get(`/reports/by-age${cq}`),
+        reportService.summary(cid),
+        reportService.byLocality(level, cid),
+        reportService.byCampaign(),
+        reportService.byAge(cid),
       ])
       if (sumRes.status === 'fulfilled') setSummary(sumRes.value.data)
       if (locRes.status === 'fulfilled') setLocalities(locRes.value.data.items || [])

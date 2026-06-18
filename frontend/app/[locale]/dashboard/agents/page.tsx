@@ -26,16 +26,12 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
+import { userService } from '@/lib/services'
+import type { Agent, Role } from '@/lib/services'
 import Swal from 'sweetalert2'
 import { useTranslations } from 'next-intl'
 
-interface Role { id_role: number; code: string; nom: string }
 interface Scope { niveau: string; id_region?: number | null }
-interface Agent {
-  id_user: number; username: string; nom: string; prenom?: string
-  email?: string; telephone?: string; actif: boolean
-  roles: Role[]; scopes: Scope[]; created_at: string
-}
 
 const ROLE_COLORS: Record<string, string> = {
   SUPER_ADMIN:       'bg-purple-500/15 text-purple-300 border-purple-500/30',
@@ -72,7 +68,7 @@ export default function UsersPage() {
   const fetchAgents = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/users')
+      const res = await userService.list()
       setAgents(res.data.items ?? [])
     } catch {
       Swal.fire({ icon: 'error', title: t('error'), text: t('loadError'),
@@ -82,7 +78,7 @@ export default function UsersPage() {
 
   const fetchRoles = useCallback(async () => {
     try {
-      const res = await api.get('/users/roles')
+      const res = await userService.listRoles()
       setRoles(res.data ?? [])
     } catch { /* silently ignore */ }
   }, [])
@@ -107,7 +103,7 @@ export default function UsersPage() {
     }
     setSub(true)
     try {
-      await api.post('/users', {
+      await userService.create({
         username:  form.username,
         nom:       form.nom,
         prenom:    form.prenom || undefined,
@@ -164,7 +160,7 @@ export default function UsersPage() {
       }
       if (editForm.password) payload.password = editForm.password
 
-      await api.put(`/users/${editingUser.id_user}`, payload)
+      await userService.update(editingUser.id_user, payload)
       Swal.fire({ icon: 'success', title: t('userUpdated'), timer: 1500,
         showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
       setEditDialog(false)
@@ -178,7 +174,7 @@ export default function UsersPage() {
 
   const handleToggle = async (agent: Agent) => {
     try {
-      await api.put(`/users/${agent.id_user}`, { actif: !agent.actif })
+      await userService.toggleActive(agent)
       fetchAgents()
     } catch {
       Swal.fire({ icon: 'error', title: t('error'), text: t('modifyError'),
@@ -197,7 +193,7 @@ export default function UsersPage() {
     })
     if (!res.isConfirmed) return
     try {
-      await api.delete(`/users/${agent.id_user}`)
+      await userService.delete(agent.id_user)
       Swal.fire({ icon: 'success', title: t('deleted'), timer: 1200,
         showConfirmButton: false, background: '#0D1B2E', color: '#E2EAF2', iconColor: '#10B981' })
       fetchAgents()

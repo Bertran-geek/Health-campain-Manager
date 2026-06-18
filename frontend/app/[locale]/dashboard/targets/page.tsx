@@ -41,31 +41,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import Swal from 'sweetalert2'
-import api from '@/lib/api'
+import { targetService, campaignService, geographyService } from '@/lib/services'
+import type { Target, Campaign, CHW } from '@/lib/services'
 import { useTranslations, useLocale } from 'next-intl'
 
-interface Target {
-  id_target: number
-  first_name_target: string | null
-  last_name_target: string | null
-  age: number | null
-  sex: string | null
-  chw_id: number | null
-  vaccinate: boolean
-  id_campain: number | null
-  beneficiaire: boolean
-}
-
-interface Campaign {
-  id_campaign: number
-  nom: string
-}
-
-interface CHW {
-  id_chw: number
-  nom: string
-  prenom: string | null
-}
 
 const SWL = { background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' }
 
@@ -104,9 +83,9 @@ export default function TargetsPage() {
     setLoading(true)
     try {
       const [targetsRes, campaignsRes, chwsRes] = await Promise.allSettled([
-        api.get('/targets?limit=500'),
-        api.get('/campaigns?page_size=100'),
-        api.get('/chws?page_size=100')
+        targetService.list(),
+        campaignService.list(),
+        geographyService.listChws(),
       ])
       if (targetsRes.status === 'fulfilled') setTargets(targetsRes.value.data.items || [])
       if (campaignsRes.status === 'fulfilled') setCampaigns(campaignsRes.value.data.items || [])
@@ -163,10 +142,10 @@ export default function TargetsPage() {
       }
 
       if (isEditing && currentId) {
-        await api.put(`/targets/${currentId}`, payload)
+        await targetService.update(currentId, payload)
         Swal.fire({ icon: 'success', title: t('updateSuccess'), timer: 1500, showConfirmButton: false, ...SWL })
       } else {
-        await api.post('/targets', payload)
+        await targetService.create(payload)
         Swal.fire({ icon: 'success', title: t('createSuccess'), timer: 1500, showConfirmButton: false, ...SWL })
       }
       setIsDialogOpen(false)
@@ -194,7 +173,7 @@ export default function TargetsPage() {
 
     if (r.isConfirmed) {
       try {
-        await api.delete(`/targets/${id}`)
+        await targetService.delete(id)
         Swal.fire({ icon: 'success', title: t('deletedTitle'), timer: 1500, showConfirmButton: false, ...SWL })
         fetchData()
       } catch (err: any) {
@@ -205,7 +184,7 @@ export default function TargetsPage() {
 
   const handleToggleVaccinate = async (tData: Target) => {
     try {
-      await api.put(`/targets/${tData.id_target}`, { vaccinate: !tData.vaccinate })
+      await targetService.toggleVaccinate(tData)
       fetchData()
     } catch (err: any) {
       Swal.fire({ icon: 'error', title: t('error'), text: t('defaultError'), ...SWL })
@@ -214,7 +193,7 @@ export default function TargetsPage() {
 
   const handleToggleBeneficiaire = async (tData: Target) => {
     try {
-      await api.put(`/targets/${tData.id_target}`, { beneficiaire: !tData.beneficiaire })
+      await targetService.toggleBeneficiaire(tData)
       fetchData()
     } catch (err: any) {
       Swal.fire({ icon: 'error', title: t('error'), text: t('defaultError'), ...SWL })

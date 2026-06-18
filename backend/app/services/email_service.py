@@ -66,7 +66,8 @@ async def _send_email(
         smtp = SMTP(
             hostname=settings.SMTP_HOST,
             port=settings.SMTP_PORT,
-            use_tls=settings.SMTP_USE_TLS,
+            use_tls=False,
+            start_tls=True,
         )
         await smtp.connect()
         await smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)

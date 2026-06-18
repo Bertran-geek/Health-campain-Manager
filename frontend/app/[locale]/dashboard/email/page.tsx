@@ -17,20 +17,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import Swal from 'sweetalert2'
-import api from '@/lib/api'
+import { emailService } from '@/lib/services'
+import type { EmailConfig } from '@/lib/services'
 import { useTranslations, useLocale } from 'next-intl'
 
 const SWL = { background: '#0D1B2E', color: '#E2EAF2', confirmButtonColor: '#38BDF8' }
-
-interface EmailConfig {
-  smtp_configured: boolean
-  smtp_host: string
-  smtp_port: number
-  smtp_user: string
-  from_email: string
-  weekly_report_day: number
-  weekly_report_hour: number
-}
 
 const DAY_OPTIONS = [
   { value: 0, label_en: 'Monday', label_fr: 'Lundi' },
@@ -66,7 +57,7 @@ export default function EmailPage() {
   const fetchConfig = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/emails/config')
+      const res = await emailService.getConfig()
       setConfig(res.data)
       setForm({
         smtp_host: res.data.smtp_host || 'smtp.gmail.com',
@@ -102,7 +93,7 @@ export default function EmailPage() {
       if (form.smtp_password) {
         payload.smtp_password = form.smtp_password
       }
-      await api.put('/emails/config', payload)
+      await emailService.updateConfig(payload)
       Swal.fire({ icon: 'success', title: t('saveSuccess'), timer: 1500, showConfirmButton: false, ...SWL })
       fetchConfig()
     } catch (err: any) {
@@ -116,7 +107,7 @@ export default function EmailPage() {
     if (!testEmail) return
     setSendingTest(true)
     try {
-      await api.post('/emails/test', { to_email: testEmail })
+      await emailService.sendTest(testEmail)
       Swal.fire({ icon: 'success', title: t('testSent'), timer: 1500, showConfirmButton: false, ...SWL })
     } catch (err: any) {
       Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('testFailed'), ...SWL })
@@ -128,7 +119,7 @@ export default function EmailPage() {
   const handleWeeklyReport = async () => {
     setSendingWeekly(true)
     try {
-      await api.post('/emails/weekly-report')
+      await emailService.triggerWeeklyReport()
       Swal.fire({ icon: 'success', title: t('weeklySent'), timer: 1500, showConfirmButton: false, ...SWL })
     } catch (err: any) {
       Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('weeklyFailed'), ...SWL })

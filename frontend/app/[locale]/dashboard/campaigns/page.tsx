@@ -14,21 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import api from '@/lib/api'
+import { campaignService, moleculeService, geographyService } from '@/lib/services'
+import type { Campaign, Molecule, CampaignZone, Region, Department } from '@/lib/services'
 import Swal from 'sweetalert2'
 import { useTranslations } from 'next-intl'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Molecule { id_molecule: number; nom: string; code: string; description?: string; nombre_dose_standard: number }
-interface CampaignZone { id_zone?: number; niveau: string; id_region?: number; id_dpt?: number; id_phc?: number }
-interface Campaign {
-  id_campaign: number; nom: string; code: string; description?: string
-  type_campagne: string; date_debut: string; date_fin: string
-  actif: boolean; sexe: string; nombre_dose: number
-  age_min?: number; age_max?: number; total_personne?: number; created_at: string
-  molecules: Molecule[]; zones: CampaignZone[]
-}
-interface Region { id_region: number; nom_region: string }
-interface Department { id_dpt: number; nom_dpt: string; id_region: number }
+// --- Types (imported from services) ---
 type FormData = { nom: string; code: string; description: string; type_campagne: string; date_debut: string; date_fin: string; sexe: string; nombre_dose: number; age_min: string; age_max: string }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -98,7 +89,7 @@ function MoleculeSelector({ selected, onChange, molecules, onRefresh }: { select
     if (!f.code || !f.nom) { Swal.fire({ icon: 'warning', title: t('error'), text: t('moleculeRequired'), ...SWL }); return }
     setCreating(true)
     try {
-      const res = await api.post('/molecules', { ...f, nombre_dose_standard: Number(f.nombre_dose_standard) })
+      const res = await moleculeService.create({ ...f, nombre_dose_standard: Number(f.nombre_dose_standard) })
       Swal.fire({ icon: 'success', title: t('moleculeCreated'), timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       await onRefresh(); onChange([...selected, res.data.id_molecule])
       setF({ code: '', nom: '', description: '', nombre_dose_standard: 1 }); setShowCreate(false)
@@ -205,18 +196,18 @@ export default function CampaignsPage() {
 
   const fetchCampaigns = useCallback(async () => {
     setLoading(true)
-    try { const r = await api.get('/campaigns?page=1&page_size=100'); setCampaigns(r.data.items ?? []) }
+    try { const r = await campaignService.list(1, 100); setCampaigns(r.data.items ?? []) }
     catch { Swal.fire({ icon: 'error', title: t('error'), text: t('noCampaigns'), ...SWL }) }
     finally { setLoading(false) }
   }, [])
   const fetchMolecules = useCallback(async () => {
-    try { const r = await api.get('/molecules'); setMolecules(r.data) } catch {}
+    try { const r = await moleculeService.list(); setMolecules(r.data) } catch {}
   }, [])
   const fetchRegions = useCallback(async () => {
-    try { const r = await api.get('/regions?page_size=100'); setRegions(r.data.items ?? []) } catch {}
+    try { const r = await geographyService.listRegions(); setRegions(r.data.items ?? []) } catch {}
   }, [])
   const fetchDepts = useCallback(async () => {
-    try { const r = await api.get('/departements?page_size=500'); setAllDepts(r.data.items ?? []) } catch {}
+    try { const r = await geographyService.listDepartments(); setAllDepts(r.data.items ?? []) } catch {}
   }, [])
 
   useEffect(() => { fetchCampaigns(); fetchMolecules(); fetchRegions(); fetchDepts() }, [fetchCampaigns, fetchMolecules, fetchRegions, fetchDepts])
@@ -237,7 +228,7 @@ export default function CampaignsPage() {
     if (!form.nom || !form.code || !form.date_debut || !form.date_fin) { Swal.fire({ icon: 'warning', title: t('error'), text: t('requiredFields'), ...SWL }); return }
     setSub(true)
     try {
-      await api.post('/campaigns', { ...form, nombre_dose: Number(form.nombre_dose), age_min: form.age_min !== '' ? Number(form.age_min) : undefined, age_max: form.age_max !== '' ? Number(form.age_max) : undefined, actif: true, molecule_ids: selMols, zones: selZones })
+      await campaignService.create({ ...form, nombre_dose: Number(form.nombre_dose), age_min: form.age_min !== '' ? Number(form.age_min) : undefined, age_max: form.age_max !== '' ? Number(form.age_max) : undefined, actif: true, molecule_ids: selMols, zones: selZones })
       Swal.fire({ icon: 'success', title: t('campaignCreated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setForm({ ...EMPTY }); setSelMols([]); setSelZones([]); setCreateOpen(false); fetchCampaigns()
     } catch (err: any) { Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('createError'), ...SWL })
@@ -248,7 +239,7 @@ export default function CampaignsPage() {
     if (!editC) return
     setEditSub(true)
     try {
-      await api.put(`/campaigns/${editC.id_campaign}`, { ...editForm, nombre_dose: Number(editForm.nombre_dose), age_min: editForm.age_min !== '' ? Number(editForm.age_min) : undefined, age_max: editForm.age_max !== '' ? Number(editForm.age_max) : undefined, molecule_ids: editMols, zones: editZones })
+      await campaignService.update(editC.id_campaign, { ...editForm, nombre_dose: Number(editForm.nombre_dose), age_min: editForm.age_min !== '' ? Number(editForm.age_min) : undefined, age_max: editForm.age_max !== '' ? Number(editForm.age_max) : undefined, molecule_ids: editMols, zones: editZones })
       Swal.fire({ icon: 'success', title: t('campaignUpdated'), timer: 1500, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       setEditC(null); fetchCampaigns()
     } catch (err: any) { Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('updateError'), ...SWL })
@@ -259,7 +250,7 @@ export default function CampaignsPage() {
     const r = await Swal.fire({ title: t('deleteConfirmTitle', {name: c.nom}), text: t('deleteConfirmText'), icon: 'warning', showCancelButton: true, confirmButtonColor: '#EF4444', cancelButtonColor: '#334155', confirmButtonText: t('deleteBtn'), cancelButtonText: t('cancelBtn'), ...SWL })
     if (!r.isConfirmed) return
     try {
-      await api.delete(`/campaigns/${c.id_campaign}`)
+      await campaignService.delete(c.id_campaign)
       Swal.fire({ icon: 'success', title: t('campaignDeleted'), timer: 1200, showConfirmButton: false, ...SWL, iconColor: '#10B981' })
       fetchCampaigns()
     } catch (err: any) { Swal.fire({ icon: 'error', title: t('error'), text: err.response?.data?.detail || t('deleteError'), ...SWL }) }
